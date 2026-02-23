@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/kmy_file_provider.dart';
 import '../providers/account_list_provider.dart';
 import 'account_transactions_screen.dart';
+import 'package:file_picker/file_picker.dart';
 // import '../../domain/models/money.dart';
 // import '../../data/database/models/account_with_balance_row.dart';
 
@@ -20,8 +21,18 @@ class AccountListScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Accounts')),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          ref.read(kmyFileProvider.notifier).loadFile('test.kmy');
+        onPressed: () async {
+          final result = await FilePicker.platform.pickFiles(
+            type: FileType.any,
+          );
+
+          if (result != null && result.files.single.path != null) {
+            final path = result.files.single.path!;
+
+            // print('Selected file: $path');
+
+            ref.read(kmyFileProvider.notifier).loadFile(path);
+          }
         },
         child: const Icon(Icons.folder_open),
       ),

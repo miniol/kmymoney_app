@@ -40,6 +40,8 @@ class KmyParser {
 
       final splitNodes = tx.findAllElements('SPLIT');
 
+      final rawDate = tx.getAttribute('postdate') ?? '';
+
       for (final split in splitNodes) {
         splits.add(
           Split(
@@ -52,12 +54,31 @@ class KmyParser {
       transactions.add(
         LedgerTransaction(
           id: tx.getAttribute('id') ?? '',
-          date: DateTime.parse(tx.getAttribute('postdate') ?? ''),
+          date: _parseKmyDate(rawDate),
           splits: splits,
         ),
       );
     }
 
     return transactions;
+  }
+
+  DateTime _parseKmyDate(String value) {
+    final trimmed = value.trim();
+
+    if (trimmed.isEmpty) {
+      // fallback date or throw controlled exception
+      return DateTime(1970, 1, 1);
+    }
+
+    final eightDigit = RegExp(r'^\d{8}$');
+    if (eightDigit.hasMatch(trimmed)) {
+      final year = int.parse(trimmed.substring(0, 4));
+      final month = int.parse(trimmed.substring(4, 6));
+      final day = int.parse(trimmed.substring(6, 8));
+      return DateTime(year, month, day);
+    }
+
+    return DateTime.parse(trimmed);
   }
 }

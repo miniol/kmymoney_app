@@ -3,20 +3,23 @@ import '../../domain/repositories/kmy_repository.dart';
 import 'repository_providers.dart';
 
 class KmyFileNotifier extends AsyncNotifier<void> {
-  late final KmyRepository _repository;
-
   @override
   Future<void> build() async {
-    _repository = ref.read(kmyRepositoryProvider);
+    // No initialization needed here
   }
 
   Future<void> loadFile(String path) async {
     state = const AsyncLoading();
 
     try {
-      await _repository.loadFromPath(path);
+      final repository = ref.read(kmyRepositoryProvider);
+
+      await repository.loadFromPath(path);
+
       state = const AsyncData(null);
     } catch (e, st) {
+      // print('ERROR: $e');
+      // print(st);
       state = AsyncError(e, st);
     }
   }
