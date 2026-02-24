@@ -4,19 +4,30 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "Run KmyMoney App Emulator",
+            "label": "Start Pixel 7 Emulator (Win)",
             "type": "shell",
-            "command": "flutter run",
+            "command": "emulator.exe -avd Pixel_7 -no-boot-anim",
         },
         {
-            "label": "Run KmyMoney App Linux",
+            "label": "Run KmyMoney",
             "type": "shell",
-            "command": "flutter run -d linux",
+            "command": "flutter run",
         },
         {
             "label": "List emulators",
             "type": "shell",
             "command": "flutter devices",
+        },
+        {
+            "label": "Clean",
+            "type": "shell",
+            "command": "flutter clean",
+        },
+        {
+            "label": "Build KmyMoney",
+            "type": "shell",
+            "command": "flutter build",
         }
+
     ]
 }

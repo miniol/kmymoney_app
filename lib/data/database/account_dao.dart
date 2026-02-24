@@ -17,6 +17,7 @@ class AccountDao {
         'name': account.name,
         'type': account.type,
         'currency_id': account.currencyId,
+        'closed': account.closed ? 1 : 0,
       }, conflictAlgorithm: ConflictAlgorithm.replace);
     }
 
@@ -36,6 +37,7 @@ class AccountDao {
         name: map['name'] as String,
         type: map['type'] as String,
         currencyId: map['currency_id'] as String,
+        closed: map['closed'] == '1',
       );
     }).toList();
   }
@@ -50,6 +52,7 @@ class AccountDao {
   Future<List<AccountWithBalanceRow>> getAccountsWithBalances() async {
     final db = await AppDatabase.instance.database;
 
+    // Select accounts of type asset (1), liability (2), or investment (15)
     final result = await db.rawQuery('''
     SELECT 
       a.id,
@@ -59,8 +62,10 @@ class AccountDao {
       IFNULL(SUM(CAST(s.numerator AS INTEGER)), 0) as total_num,
       IFNULL(MAX(CAST(s.denominator AS INTEGER)), 1) as denom
     FROM accounts a
-    LEFT JOIN splits s 
+    LEFT JOIN splits s
       ON a.id = s.account_id
+    WHERE a.type IN ('1', '2', '15')
+    AND a.closed = 0
     GROUP BY a.id
   ''');
 

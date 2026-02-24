@@ -19,7 +19,19 @@ class AppDatabase {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, fileName);
 
-    return await openDatabase(path, version: 1, onCreate: _createDB);
+    return await openDatabase(
+      path,
+      version: 2,
+      onCreate: _createDB,
+      // Migration from version 1 to 2: add closed column to accounts table
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute(
+            'ALTER TABLE accounts ADD COLUMN closed INTEGER DEFAULT 0',
+          );
+        }
+      },
+    );
   }
 
   Future<void> _createDB(Database db, int version) async {
@@ -28,7 +40,8 @@ class AppDatabase {
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         type TEXT NOT NULL,
-        currency_id TEXT NOT NULL
+        currency_id TEXT NOT NULL,
+        closed INTEGER DEFAULT 0
       )
     ''');
 

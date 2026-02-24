@@ -23,6 +23,7 @@ class KmyParser {
           name: node.getAttribute('name') ?? '',
           type: node.getAttribute('type') ?? '',
           currencyId: node.getAttribute('currency') ?? '',
+          closed: node.getAttribute('closed') == '1',
         ),
       );
     }
