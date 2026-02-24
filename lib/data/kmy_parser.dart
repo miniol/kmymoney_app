@@ -17,17 +17,33 @@ class KmyParser {
     final accountNodes = document.findAllElements('ACCOUNT');
 
     for (final node in accountNodes) {
+      bool isClosed = false;
+
+      final kvElements = node.findElements('KEYVALUEPAIRS');
+
+      if (kvElements.isNotEmpty) {
+        final kvNode = kvElements.first;
+
+        for (final pair in kvNode.findElements('PAIR')) {
+          final key = pair.getAttribute('key');
+          final value = pair.getAttribute('value');
+
+          if (key == 'mm-closed' && value == 'yes') {
+            isClosed = true;
+          }
+        }
+      }
+
       accounts.add(
         Account(
           id: node.getAttribute('id') ?? '',
           name: node.getAttribute('name') ?? '',
           type: node.getAttribute('type') ?? '',
           currencyId: node.getAttribute('currency') ?? '',
-          closed: node.getAttribute('closed') == '1',
+          closed: isClosed,
         ),
       );
     }
-
     return accounts;
   }
 

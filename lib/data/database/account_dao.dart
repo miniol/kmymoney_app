@@ -4,6 +4,7 @@ import 'app_database.dart';
 import 'db_change_notifier.dart';
 import '../../domain/models/money.dart';
 import 'models/account_with_balance_row.dart';
+import 'models/account_type.dart';
 
 class AccountDao {
   Future<void> insertAccounts(List<Account> accounts) async {
@@ -49,10 +50,16 @@ class AccountDao {
     DbChangeNotifier.instance.notify();
   }
 
-  Future<List<AccountWithBalanceRow>> getAccountsWithBalances() async {
+  Future<List<AccountWithBalanceRow>> getAccountsWithBalances({
+    required Set<AccountType> visibleTypes,
+    required bool showClosed,
+  }) async {
     final db = await AppDatabase.instance.database;
 
-    // Select accounts of type asset (1), liability (2), or investment (15)
+    final typeValues = visibleTypes.map((e) => "'${e.dbValue}'").join(',');
+
+    final whereClosed = showClosed ? '' : 'AND a.closed = 0';
+
     final result = await db.rawQuery('''
     SELECT 
       a.id,
@@ -62,13 +69,12 @@ class AccountDao {
       IFNULL(SUM(CAST(s.numerator AS INTEGER)), 0) as total_num,
       IFNULL(MAX(CAST(s.denominator AS INTEGER)), 1) as denom
     FROM accounts a
-    LEFT JOIN splits s
-      ON a.id = s.account_id
-    WHERE a.type IN ('1', '2', '15')
-    AND a.closed = 0
+    LEFT JOIN splits s ON a.id = s.account_id
+    WHERE a.type IN ($typeValues)
+    $whereClosed
     GROUP BY a.id
-  ''');
-
+    ORDER BY a.name
+    ''');
     return result.map((row) {
       return AccountWithBalanceRow(
         id: row['id'] as String,

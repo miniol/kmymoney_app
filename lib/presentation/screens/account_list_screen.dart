@@ -4,6 +4,8 @@ import '../providers/kmy_file_provider.dart';
 import '../providers/account_list_provider.dart';
 import 'account_transactions_screen.dart';
 import 'package:file_picker/file_picker.dart';
+import 'settings_screen.dart';
+
 // import '../../domain/models/money.dart';
 // import '../../data/database/models/account_with_balance_row.dart';
 
@@ -19,7 +21,20 @@ class AccountListScreen extends ConsumerWidget {
     final accountListAsync = ref.watch(accountListProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Accounts')),
+      appBar: AppBar(
+        title: const Text('Accounts'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SettingsScreen()),
+              );
+            },
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
           final result = await FilePicker.platform.pickFiles(
