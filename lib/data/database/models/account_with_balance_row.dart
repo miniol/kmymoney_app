@@ -6,6 +6,7 @@ class AccountWithBalanceRow {
   final String type;
   final String currencyId;
   final Money balance;
+  final bool isFavorite;
 
   AccountWithBalanceRow({
     required this.id,
@@ -13,5 +14,6 @@ class AccountWithBalanceRow {
     required this.type,
     required this.currencyId,
     required this.balance,
+    this.isFavorite = false,
   });
 }
