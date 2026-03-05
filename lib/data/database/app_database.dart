@@ -21,7 +21,7 @@ class AppDatabase {
 
     return await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: _createDB,
       // Migration from version 1 to 2: add closed column to accounts table
       onUpgrade: (db, oldVersion, newVersion) async {
@@ -29,6 +29,24 @@ class AppDatabase {
           await db.execute(
             'ALTER TABLE accounts ADD COLUMN closed INTEGER DEFAULT 0',
           );
+        }
+
+        if (oldVersion < 3) {
+          await db.execute('''
+            CREATE TABLE schedules (
+              id TEXT PRIMARY KEY,
+              group_key TEXT NOT NULL,
+              name TEXT NOT NULL,
+              account_id TEXT NOT NULL,
+              currency_id TEXT NOT NULL,
+              payee TEXT NOT NULL,
+              frequency TEXT NOT NULL,
+              payment_method TEXT NOT NULL,
+              next_due_date TEXT NOT NULL,
+              amount_num TEXT NOT NULL,
+              amount_denom TEXT NOT NULL
+            )
+          ''');
         }
       },
     );
@@ -61,6 +79,22 @@ class AppDatabase {
         denominator TEXT NOT NULL,
         FOREIGN KEY (transaction_id) REFERENCES transactions(id),
         FOREIGN KEY (account_id) REFERENCES accounts(id)
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE schedules (
+        id TEXT PRIMARY KEY,
+        group_key TEXT NOT NULL,
+        name TEXT NOT NULL,
+        account_id TEXT NOT NULL,
+        currency_id TEXT NOT NULL,
+        payee TEXT NOT NULL,
+        frequency TEXT NOT NULL,
+        payment_method TEXT NOT NULL,
+        next_due_date TEXT NOT NULL,
+        amount_num TEXT NOT NULL,
+        amount_denom TEXT NOT NULL
       )
     ''');
   }
