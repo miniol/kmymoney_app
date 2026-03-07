@@ -5,6 +5,135 @@ import '../domain/models/schedule.dart';
 import '../domain/models/split.dart';
 import '../domain/models/money.dart';
 
+enum ScheduleFrequency {
+  once,
+  daily,
+  weekly,
+  biweekly,
+  halfMonth,
+  monthly,
+  everyTwoMonths,
+  quarterly,
+  everyFourMonths,
+  semiannual,
+  yearly,
+  everyTwoYears,
+  custom,
+}
+
+class ScheduleInterpretation {
+  final ScheduleFrequency frequency;
+  final int multiplier;
+
+  ScheduleInterpretation(this.frequency, this.multiplier);
+
+  String get displayName {
+    switch (frequency) {
+      case ScheduleFrequency.once:
+        return 'Once';
+      case ScheduleFrequency.daily:
+        return 'Daily';
+      case ScheduleFrequency.weekly:
+        return 'Weekly';
+      case ScheduleFrequency.biweekly:
+        return 'Biweekly';
+      case ScheduleFrequency.halfMonth:
+        return 'Half-month';
+      case ScheduleFrequency.monthly:
+        return 'Monthly';
+      case ScheduleFrequency.everyTwoMonths:
+        return 'Every two months';
+      case ScheduleFrequency.quarterly:
+        return 'Quarterly';
+      case ScheduleFrequency.everyFourMonths:
+        return 'Every four months';
+      case ScheduleFrequency.semiannual:
+        return 'Semiannual';
+      case ScheduleFrequency.yearly:
+        return 'Yearly';
+      case ScheduleFrequency.everyTwoYears:
+        return 'Every two years';
+      case ScheduleFrequency.custom:
+        return 'Custom';
+    }
+  }
+
+  @override
+  String toString() {
+    final m = multiplier <= 0 ? 1 : multiplier;
+    if (m == 1) return displayName;
+    return '$displayName x$m';
+  }
+}
+
+ScheduleInterpretation interpretKMyMoneySchedule({
+  required int occurence,
+  required int occurenceMultiplier,
+  required DateTime startDate,
+  required DateTime nextDueDate,
+  DateTime? lastPayment,
+}) {
+  const standardMap = {
+    1: ScheduleFrequency.daily,
+    2: ScheduleFrequency.weekly,
+    3: ScheduleFrequency.biweekly,
+    4: ScheduleFrequency.halfMonth,
+    5: ScheduleFrequency.monthly,
+    6: ScheduleFrequency.everyTwoMonths,
+    7: ScheduleFrequency.quarterly,
+    8: ScheduleFrequency.everyFourMonths,
+    9: ScheduleFrequency.semiannual,
+    10: ScheduleFrequency.yearly,
+    11: ScheduleFrequency.everyTwoYears,
+  };
+
+  if (standardMap.containsKey(occurence)) {
+    return ScheduleInterpretation(standardMap[occurence]!, occurenceMultiplier);
+  }
+
+  if (occurence == 32) {
+    if (lastPayment != null) {
+      final diff = nextDueDate.difference(lastPayment).inDays;
+
+      if (diff >= 28 && diff <= 31) {
+        return ScheduleInterpretation(ScheduleFrequency.monthly, 1);
+      }
+      if (diff >= 55 && diff <= 62) {
+        return ScheduleInterpretation(ScheduleFrequency.everyTwoMonths, 1);
+      }
+      if (diff >= 85 && diff <= 95) {
+        return ScheduleInterpretation(ScheduleFrequency.quarterly, 1);
+      }
+      if (diff >= 360 && diff <= 370) {
+        return ScheduleInterpretation(ScheduleFrequency.yearly, 1);
+      }
+    }
+
+    return ScheduleInterpretation(ScheduleFrequency.once, 1);
+  }
+
+  if (occurence == 16384) {
+    final diff = nextDueDate.difference(startDate).inDays;
+
+    if (diff >= 28 && diff <= 31) {
+      return ScheduleInterpretation(ScheduleFrequency.monthly, 1);
+    }
+    if (diff >= 55 && diff <= 62) {
+      return ScheduleInterpretation(ScheduleFrequency.everyTwoMonths, 1);
+    }
+    if (diff >= 85 && diff <= 95) {
+      return ScheduleInterpretation(ScheduleFrequency.quarterly, 1);
+    }
+    if (diff >= 360 && diff <= 370) {
+      return ScheduleInterpretation(ScheduleFrequency.yearly, 1);
+    }
+
+    return ScheduleInterpretation(ScheduleFrequency.custom, 1);
+  }
+
+  return ScheduleInterpretation(ScheduleFrequency.custom, occurenceMultiplier);
+}
+
 class KmyParser {
   late XmlDocument document;
 
@@ -102,13 +231,26 @@ class KmyParser {
       final txNode = node.getElement('TRANSACTION');
       final commodity = txNode?.getAttribute('commodity') ?? '';
 
+      final startDateRaw = node.getAttribute('startDate') ?? '';
+      final startDate = startDateRaw.isEmpty
+          ? DateTime(1970, 1, 1)
+          : _parseKmyDate(startDateRaw);
+
       final nextDueRaw =
-          node.getAttribute('startDate') ??
+          node.getAttribute('nextDueDate') ??
+          node.getAttribute('nextdue') ??
+          node.getAttribute('nextDue') ??
           txNode?.getAttribute('postdate') ??
+          node.getAttribute('startDate') ??
           '';
       final nextDueDate = nextDueRaw.isEmpty
           ? DateTime(1970, 1, 1)
           : _parseKmyDate(nextDueRaw);
+
+      final lastPaymentRaw = node.getAttribute('lastPayment') ?? '';
+      final lastPayment = lastPaymentRaw.isEmpty
+          ? null
+          : _parseKmyDate(lastPaymentRaw);
 
       final occurence =
           node.getAttribute('occurence') ??
@@ -119,7 +261,19 @@ class KmyParser {
           node.getAttribute('occurrenceMultiplier') ??
           '';
 
-      final frequency = _formatFrequency(occurence, occurenceMultiplier);
+      final occurenceInt = _parseIntSafe(occurence);
+      final occurenceMultiplierInt = _parseIntSafe(
+        occurenceMultiplier,
+        fallback: 1,
+      );
+
+      final frequency = interpretKMyMoneySchedule(
+        occurence: occurenceInt,
+        occurenceMultiplier: occurenceMultiplierInt,
+        startDate: startDate,
+        nextDueDate: nextDueDate,
+        lastPayment: lastPayment,
+      ).toString();
 
       final paymentMethod =
           node.getAttribute('paymentType') ??
@@ -208,13 +362,10 @@ class KmyParser {
     return splits.first;
   }
 
-  String _formatFrequency(String occurence, String multiplier) {
-    final occ = occurence.trim();
-    final mul = multiplier.trim();
-
-    if (occ.isEmpty && mul.isEmpty) return '';
-    if (mul.isEmpty || mul == '1') return occ;
-    return '$occ x$mul';
+  int _parseIntSafe(String value, {int fallback = 0}) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return fallback;
+    return int.tryParse(trimmed) ?? fallback;
   }
 
   DateTime _parseKmyDate(String value) {
