@@ -9,6 +9,11 @@
             "command": "emulator.exe -avd Pixel_7 -no-boot-anim",
         },
         {
+            "label": "Start Pixel 7 Emulator (Win) - wipe data",
+            "type": "shell",
+            "command": "emulator.exe -avd Pixel_7 -wipe-data -no-boot-anim",
+        },
+        {
             "label": "Run KmyMoney",
             "type": "shell",
             "command": "flutter run",
