@@ -1,6 +1,7 @@
 import 'package:xml/xml.dart';
 import '../domain/models/account.dart';
 import '../domain/models/ledger_transaction.dart';
+import '../domain/models/payee.dart';
 import '../domain/models/schedule.dart';
 import '../domain/models/split.dart';
 import '../domain/models/money.dart';
@@ -175,6 +176,21 @@ class KmyParser {
       );
     }
     return accounts;
+  }
+
+  List<Payee> parsePayees() {
+    final payees = <Payee>[];
+
+    final payeeNodes = document.findAllElements('PAYEE');
+
+    for (final node in payeeNodes) {
+      final id = node.getAttribute('id') ?? '';
+      if (id.isEmpty) continue;
+
+      payees.add(Payee(id: id, name: node.getAttribute('name') ?? ''));
+    }
+
+    return payees;
   }
 
   List<LedgerTransaction> parseTransactions() {

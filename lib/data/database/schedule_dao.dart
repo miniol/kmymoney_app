@@ -48,7 +48,7 @@ class ScheduleDao {
         s.name,
         s.account_id,
         s.currency_id,
-        s.payee,
+        IFNULL(p.name, s.payee) as payee,
         s.frequency,
         s.payment_method,
         s.next_due_date,
@@ -58,6 +58,7 @@ class ScheduleDao {
         IFNULL(a.currency_id, s.currency_id) as account_currency_id
       FROM schedules s
       LEFT JOIN accounts a ON a.id = s.account_id
+      LEFT JOIN payees p ON p.id = s.payee
       ORDER BY s.next_due_date ASC
     ''');
 

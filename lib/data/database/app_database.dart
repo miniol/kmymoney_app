@@ -21,7 +21,7 @@ class AppDatabase {
 
     return await openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: _createDB,
       // Migration from version 1 to 2: add closed column to accounts table
       onUpgrade: (db, oldVersion, newVersion) async {
@@ -45,6 +45,15 @@ class AppDatabase {
               next_due_date TEXT NOT NULL,
               amount_num TEXT NOT NULL,
               amount_denom TEXT NOT NULL
+            )
+          ''');
+        }
+
+        if (oldVersion < 4) {
+          await db.execute('''
+            CREATE TABLE payees (
+              id TEXT PRIMARY KEY,
+              name TEXT NOT NULL
             )
           ''');
         }
@@ -95,6 +104,13 @@ class AppDatabase {
         next_due_date TEXT NOT NULL,
         amount_num TEXT NOT NULL,
         amount_denom TEXT NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE payees (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL
       )
     ''');
   }
