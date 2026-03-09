@@ -41,7 +41,11 @@ class ScheduleDao {
   Future<List<ScheduleWithDetailsRow>> getSchedules() async {
     final db = await AppDatabase.instance.database;
 
-    final rows = await db.rawQuery('''
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day).toIso8601String();
+
+    final rows = await db.rawQuery(
+      '''
       SELECT
         s.id,
         s.group_key,
@@ -59,8 +63,11 @@ class ScheduleDao {
       FROM schedules s
       LEFT JOIN accounts a ON a.id = s.account_id
       LEFT JOIN payees p ON p.id = s.payee
+      WHERE s.next_due_date >= ?
       ORDER BY s.next_due_date ASC
-    ''');
+    ''',
+      [todayStart],
+    );
 
     return rows.map((r) {
       return ScheduleWithDetailsRow(
