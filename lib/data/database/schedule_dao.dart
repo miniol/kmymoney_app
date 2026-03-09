@@ -58,11 +58,11 @@ class ScheduleDao {
         s.next_due_date,
         s.amount_num,
         s.amount_denom,
-        IFNULL(a.name, '') as account_name,
-        IFNULL(a.currency_id, s.currency_id) as account_currency_id
+        COALESCE(NULLIF(a.name, ''), NULLIF(TRIM(s.account_id), ''), '') as account_name,
+        COALESCE(NULLIF(a.currency_id, ''), NULLIF(s.currency_id, ''), '') as account_currency_id
       FROM schedules s
-      LEFT JOIN accounts a ON a.id = s.account_id
-      LEFT JOIN payees p ON p.id = s.payee
+      LEFT JOIN accounts a ON a.id = TRIM(s.account_id)
+      LEFT JOIN payees p ON p.id = TRIM(s.payee)
       WHERE s.next_due_date >= ?
       ORDER BY s.next_due_date ASC
     ''',
