@@ -143,7 +143,7 @@ class KmyParser {
   }
 
   List<Account> parseAccounts() {
-    final accounts = <Account>[];
+    final accountsById = <String, Account>{};
 
     final accountNodes = document.findAllElements('ACCOUNT');
 
@@ -165,17 +165,33 @@ class KmyParser {
         }
       }
 
-      accounts.add(
-        Account(
-          id: node.getAttribute('id') ?? '',
-          name: node.getAttribute('name') ?? '',
-          type: node.getAttribute('type') ?? '',
-          currencyId: node.getAttribute('currency') ?? '',
-          closed: isClosed,
-        ),
+      final id = (node.getAttribute('id') ?? '').trim();
+      if (id.isEmpty) continue;
+
+      final next = Account(
+        id: id,
+        name: (node.getAttribute('name') ?? '').trim(),
+        type: (node.getAttribute('type') ?? '').trim(),
+        currencyId: (node.getAttribute('currency') ?? '').trim(),
+        closed: isClosed,
       );
+
+      final existing = accountsById[id];
+      if (existing == null) {
+        accountsById[id] = next;
+      } else {
+        accountsById[id] = Account(
+          id: id,
+          name: next.name.isNotEmpty ? next.name : existing.name,
+          type: next.type.isNotEmpty ? next.type : existing.type,
+          currencyId: next.currencyId.isNotEmpty
+              ? next.currencyId
+              : existing.currencyId,
+          closed: existing.closed || next.closed,
+        );
+      }
     }
-    return accounts;
+    return accountsById.values.toList();
   }
 
   List<Payee> parsePayees() {
@@ -232,8 +248,6 @@ class KmyParser {
     final scheduleNodes = <XmlElement>[];
 
     scheduleNodes.addAll(document.findAllElements('SCHEDULED_TX'));
-    scheduleNodes.addAll(document.findAllElements('SCHEDULEDTRANSACTION'));
-    scheduleNodes.addAll(document.findAllElements('SCHEDULE'));
 
     for (final node in scheduleNodes) {
       final id = node.getAttribute('id') ?? '';
@@ -300,10 +314,20 @@ class KmyParser {
 
       final paymentMethodLabel = _decodePaymentType(paymentMethod);
 
-      final split = _selectPrimaryScheduleSplit(node);
+      final split = _selectPrimaryScheduleSplit(node, scheduleType: typeAttr);
+      final allSplits = _listScheduleSplits(node);
 
-      final payee = split?.getAttribute('payee') ?? '';
-      final accountId = split?.getAttribute('account') ?? '';
+      final payee =
+          ((split?.getAttribute('payee') ?? '').trim().isNotEmpty
+                  ? (split?.getAttribute('payee') ?? '')
+                  : _firstNonEmptyAttr(allSplits, 'payee'))
+              .trim();
+
+      final accountId =
+          ((split?.getAttribute('account') ?? '').trim().isNotEmpty
+                  ? (split?.getAttribute('account') ?? '')
+                  : _firstNonEmptyAttr(allSplits, 'account'))
+              .trim();
       final amount = Money.fromString(split?.getAttribute('value') ?? '0/1');
 
       final currencyId = commodity.isNotEmpty
@@ -361,23 +385,49 @@ class KmyParser {
     return ScheduleGroup.bills;
   }
 
-  XmlElement? _selectPrimaryScheduleSplit(XmlElement scheduleNode) {
-    final splitsParent = scheduleNode
-        .getElement('TRANSACTION')
-        ?.getElement('SPLITS')
-        ?.findElements('SPLIT');
-
-    if (splitsParent == null) return null;
-
-    final splits = splitsParent.toList();
+  XmlElement? _selectPrimaryScheduleSplit(
+    XmlElement scheduleNode, {
+    String scheduleType = '',
+  }) {
+    final splits = _listScheduleSplits(scheduleNode);
     if (splits.isEmpty) return null;
+
+    final type = scheduleType.trim();
+    final preferPositive = type == '2';
 
     for (final s in splits) {
       final value = (s.getAttribute('value') ?? '').trim();
-      if (value.startsWith('-')) return s;
+      if (preferPositive && value.isNotEmpty && !value.startsWith('-')) {
+        return s;
+      }
+      if (!preferPositive && value.startsWith('-')) {
+        return s;
+      }
+    }
+
+    for (final s in splits) {
+      final account = (s.getAttribute('account') ?? '').trim();
+      if (account.isNotEmpty) return s;
     }
 
     return splits.first;
+  }
+
+  List<XmlElement> _listScheduleSplits(XmlElement scheduleNode) {
+    return scheduleNode
+            .getElement('TRANSACTION')
+            ?.getElement('SPLITS')
+            ?.findElements('SPLIT')
+            .toList() ??
+        <XmlElement>[];
+  }
+
+  String _firstNonEmptyAttr(List<XmlElement> elements, String attr) {
+    for (final el in elements) {
+      final v = (el.getAttribute(attr) ?? '').trim();
+      if (v.isNotEmpty) return v;
+    }
+    return '';
   }
 
   int _parseIntSafe(String value, {int fallback = 0}) {
