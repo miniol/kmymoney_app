@@ -298,6 +298,8 @@ class KmyParser {
           node.getAttribute('paymentMethod') ??
           '';
 
+      final paymentMethodLabel = _decodePaymentType(paymentMethod);
+
       final split = _selectPrimaryScheduleSplit(node);
 
       final payee = split?.getAttribute('payee') ?? '';
@@ -319,7 +321,7 @@ class KmyParser {
           nextDueDate: nextDueDate,
           payee: payee,
           frequency: frequency,
-          paymentMethod: paymentMethod,
+          paymentMethod: paymentMethodLabel,
         ),
       );
     }
@@ -382,6 +384,35 @@ class KmyParser {
     final trimmed = value.trim();
     if (trimmed.isEmpty) return fallback;
     return int.tryParse(trimmed) ?? fallback;
+  }
+
+  String _decodePaymentType(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return '';
+
+    final code = int.tryParse(trimmed);
+    if (code == null) return trimmed;
+    if (code == 0) return '';
+
+    const bitNames = <int, String>{
+      1: 'Direct deposit',
+      2: 'Direct debit',
+      4: 'Manual deposit',
+      8: 'Manual withdrawal',
+      16: 'Write cheque',
+      32: 'Standing order',
+      64: 'Bank transfer',
+    };
+
+    final parts = <String>[];
+    for (final entry in bitNames.entries) {
+      if ((code & entry.key) != 0) {
+        parts.add(entry.value);
+      }
+    }
+
+    if (parts.isEmpty) return 'Unknown ($code)';
+    return parts.join(', ');
   }
 
   DateTime _parseKmyDate(String value) {
