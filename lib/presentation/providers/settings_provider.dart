@@ -20,6 +20,10 @@ class AccountFilterNotifier extends StateNotifier<AccountFilterSettings> {
   void toggleShowClosed() {
     state = state.copyWith(showClosed: !state.showClosed);
   }
+
+  void togglePreferredOnly() {
+    state = state.copyWith(preferredOnly: !state.preferredOnly);
+  }
 }
 
 final accountFilterProvider =

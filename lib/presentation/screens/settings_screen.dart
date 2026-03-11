@@ -29,6 +29,12 @@ class SettingsScreen extends ConsumerWidget {
           }),
           const Divider(),
           SwitchListTile(
+            title: const Text('Preferred only'),
+            value: settings.preferredOnly,
+            onChanged: (_) => notifier.togglePreferredOnly(),
+          ),
+          const Divider(),
+          SwitchListTile(
             title: const Text('Show Closed'),
             value: settings.showClosed,
             onChanged: (_) => notifier.toggleShowClosed(),

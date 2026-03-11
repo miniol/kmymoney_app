@@ -22,6 +22,7 @@ Stream<List<AccountWithBalanceRow>> _watchAccounts(
   yield await accountDao.getAccountsWithBalances(
     visibleTypes: settings.visibleTypes,
     showClosed: settings.showClosed,
+    preferredOnly: settings.preferredOnly,
   );
 
   await for (final _ in DbChangeNotifier.instance.stream) {
@@ -30,6 +31,7 @@ Stream<List<AccountWithBalanceRow>> _watchAccounts(
     yield await accountDao.getAccountsWithBalances(
       visibleTypes: updatedSettings.visibleTypes,
       showClosed: updatedSettings.showClosed,
+      preferredOnly: updatedSettings.preferredOnly,
     );
   }
 }

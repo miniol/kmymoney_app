@@ -4,6 +4,7 @@ class Account {
   final String type;
   final String currencyId;
   final bool closed;
+  final bool preferred;
 
   Account({
     required this.id,
@@ -11,5 +12,6 @@ class Account {
     required this.type,
     required this.currencyId,
     required this.closed,
+    this.preferred = false,
   });
 }
