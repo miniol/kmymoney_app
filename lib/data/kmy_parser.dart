@@ -149,6 +149,7 @@ class KmyParser {
 
     for (final node in accountNodes) {
       bool isClosed = false;
+      bool isPreferred = false;
 
       final kvElements = node.findElements('KEYVALUEPAIRS');
 
@@ -162,6 +163,10 @@ class KmyParser {
           if (key == 'mm-closed' && value == 'yes') {
             isClosed = true;
           }
+
+          if (key == 'PreferredAccount' && value == 'Yes') {
+            isPreferred = true;
+          }
         }
       }
 
@@ -174,6 +179,7 @@ class KmyParser {
         type: (node.getAttribute('type') ?? '').trim(),
         currencyId: (node.getAttribute('currency') ?? '').trim(),
         closed: isClosed,
+        preferred: isPreferred,
       );
 
       final existing = accountsById[id];
@@ -188,6 +194,7 @@ class KmyParser {
               ? next.currencyId
               : existing.currencyId,
           closed: existing.closed || next.closed,
+          preferred: existing.preferred || next.preferred,
         );
       }
     }

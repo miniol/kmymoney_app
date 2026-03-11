@@ -19,6 +19,7 @@ class AccountDao {
         'type': account.type,
         'currency_id': account.currencyId,
         'closed': account.closed ? 1 : 0,
+        'preferred': account.preferred ? 1 : 0,
       }, conflictAlgorithm: ConflictAlgorithm.replace);
     }
 
@@ -39,6 +40,7 @@ class AccountDao {
         type: map['type'] as String,
         currencyId: map['currency_id'] as String,
         closed: map['closed'] == '1',
+        preferred: map['preferred'] == 1 || map['preferred'] == '1',
       );
     }).toList();
   }
@@ -53,6 +55,7 @@ class AccountDao {
   Future<List<AccountWithBalanceRow>> getAccountsWithBalances({
     required Set<AccountType> visibleTypes,
     required bool showClosed,
+    required bool preferredOnly,
   }) async {
     final db = await AppDatabase.instance.database;
 
@@ -60,18 +63,22 @@ class AccountDao {
 
     final whereClosed = showClosed ? '' : 'AND a.closed = 0';
 
+    final wherePreferred = preferredOnly ? 'AND a.preferred = 1' : '';
+
     final result = await db.rawQuery('''
     SELECT 
       a.id,
       a.name,
       a.type,
       a.currency_id,
+      a.preferred,
       IFNULL(SUM(CAST(s.numerator AS INTEGER)), 0) as total_num,
       IFNULL(MAX(CAST(s.denominator AS INTEGER)), 1) as denom
     FROM accounts a
     LEFT JOIN splits s ON a.id = s.account_id
     WHERE a.type IN ($typeValues)
     $whereClosed
+    $wherePreferred
     GROUP BY a.id
     ORDER BY a.name
     ''');
@@ -85,6 +92,7 @@ class AccountDao {
           BigInt.parse(row['total_num'].toString()),
           BigInt.parse(row['denom'].toString()),
         ),
+        isFavorite: row['preferred'] == 1 || row['preferred'] == '1',
       );
     }).toList();
   }

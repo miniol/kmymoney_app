@@ -3,26 +3,31 @@ import 'account_type.dart';
 class AccountFilterSettings {
   final Set<AccountType> visibleTypes;
   final bool showClosed;
+  final bool preferredOnly;
 
   const AccountFilterSettings({
     required this.visibleTypes,
     required this.showClosed,
+    required this.preferredOnly,
   });
 
   factory AccountFilterSettings.defaultSettings() {
     return const AccountFilterSettings(
       visibleTypes: {AccountType.asset, AccountType.liability},
       showClosed: false,
+      preferredOnly: false,
     );
   }
 
   AccountFilterSettings copyWith({
     Set<AccountType>? visibleTypes,
     bool? showClosed,
+    bool? preferredOnly,
   }) {
     return AccountFilterSettings(
       visibleTypes: visibleTypes ?? this.visibleTypes,
       showClosed: showClosed ?? this.showClosed,
+      preferredOnly: preferredOnly ?? this.preferredOnly,
     );
   }
 }

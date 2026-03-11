@@ -21,7 +21,7 @@ class AppDatabase {
 
     return await openDatabase(
       path,
-      version: 4,
+      version: 5,
       onCreate: _createDB,
       // Migration from version 1 to 2: add closed column to accounts table
       onUpgrade: (db, oldVersion, newVersion) async {
@@ -57,6 +57,12 @@ class AppDatabase {
             )
           ''');
         }
+
+        if (oldVersion < 5) {
+          await db.execute(
+            'ALTER TABLE accounts ADD COLUMN preferred INTEGER DEFAULT 0',
+          );
+        }
       },
     );
   }
@@ -68,7 +74,8 @@ class AppDatabase {
         name TEXT NOT NULL,
         type TEXT NOT NULL,
         currency_id TEXT NOT NULL,
-        closed INTEGER DEFAULT 0
+        closed INTEGER DEFAULT 0,
+        preferred INTEGER DEFAULT 0
       )
     ''');
 
