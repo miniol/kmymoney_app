@@ -1,3 +1,14 @@
+// Copyright (c) 2026
+//
+// This file is part of the kmymoney_app Flutter project.
+//
+// SPDX-License-Identifier: MIT
+//
+// KMyMoney XML Parser
+//
+// Handles parsing of KMyMoney export files into Flutter domain models.
+// Supports accounts, transactions, payees, and scheduled transactions.
+
 import 'package:xml/xml.dart';
 import '../domain/models/account.dart';
 import '../domain/models/ledger_transaction.dart';
@@ -6,6 +17,10 @@ import '../domain/models/schedule.dart';
 import '../domain/models/split.dart';
 import '../domain/models/money.dart';
 
+/// Represents the frequency of scheduled transactions in KMyMoney.
+///
+/// Each enum value corresponds to a different recurrence pattern
+/// supported by KMyMoney's scheduling system.
 enum ScheduleFrequency {
   once,
   daily,
@@ -22,12 +37,23 @@ enum ScheduleFrequency {
   custom,
 }
 
+/// Represents the interpretation of a KMyMoney schedule.
+///
+/// Contains both the frequency type and multiplier to describe
+/// how often a scheduled transaction occurs.
 class ScheduleInterpretation {
   final ScheduleFrequency frequency;
   final int multiplier;
 
+  /// Creates a new schedule interpretation.
+  ///
+  /// [frequency] - The type of frequency (daily, monthly, etc.)
+  /// [multiplier] - How many times the frequency repeats (1 = normal, 2 = every two periods, etc.)
   ScheduleInterpretation(this.frequency, this.multiplier);
 
+  /// Returns a human-readable display name for the frequency.
+  ///
+  /// This provides localized text for UI display purposes.
   String get displayName {
     switch (frequency) {
       case ScheduleFrequency.once:
@@ -59,6 +85,10 @@ class ScheduleInterpretation {
     }
   }
 
+  /// Returns a string representation of the schedule interpretation.
+  ///
+  /// Combines the display name with multiplier if greater than 1.
+  /// For example: "Monthly x2" for every two months.
   @override
   String toString() {
     final m = multiplier <= 0 ? 1 : multiplier;
@@ -67,6 +97,24 @@ class ScheduleInterpretation {
   }
 }
 
+/// Interprets KMyMoney schedule data into a human-readable format.
+///
+/// Takes schedule occurrence codes and date information to determine
+/// the actual frequency and recurrence pattern of scheduled transactions.
+///
+/// This function handles KMyMoney's internal encoding of schedules:
+/// - Standard codes (1-11) map to predefined frequencies
+/// - Code 32 represents "once" or inferred monthly/yearly patterns
+/// - Code 16384 represents custom schedules
+///
+/// Parameters:
+/// - [occurence]: The schedule occurrence code from KMyMoney
+/// - [occurenceMultiplier]: How often the occurrence repeats (defaults to 1)
+/// - [startDate]: When the schedule originally started
+/// - [nextDueDate]: When the next payment is due
+/// - [lastPayment]: Optional last payment date for better frequency inference
+///
+/// Returns a [ScheduleInterpretation] containing the decoded frequency and multiplier.
 ScheduleInterpretation interpretKMyMoneySchedule({
   required int occurence,
   required int occurenceMultiplier,
@@ -135,13 +183,39 @@ ScheduleInterpretation interpretKMyMoneySchedule({
   return ScheduleInterpretation(ScheduleFrequency.custom, occurenceMultiplier);
 }
 
+/// Parses KMyMoney XML files into domain models.
+///
+/// This class handles the extraction and parsing of financial data
+/// from KMyMoney's XML export format, including accounts, transactions,
+/// payees, and scheduled transactions.
+///
+/// Usage:
+/// ```dart
+/// final parser = KmyParser(xmlString);
+/// final accounts = parser.parseAccounts();
+/// final transactions = parser.parseTransactions();
+/// ```
 class KmyParser {
   late XmlDocument document;
 
+  /// Creates a new parser instance.
+  ///
+  /// [xmlString] - The XML content from a KMyMoney export file
+  ///
+  /// Throws [XmlParserException] if the XML is malformed.
   KmyParser(String xmlString) {
     document = XmlDocument.parse(xmlString);
   }
 
+  /// Parses all account elements from the XML.
+  ///
+  /// Extracts account information including name, type, currency,
+  /// and special flags like 'closed' and 'preferred'.
+  ///
+  /// Handles duplicate account IDs by merging account data,
+  /// preferring non-empty values over empty ones.
+  ///
+  /// Returns a list of [Account] objects parsed from the XML.
   List<Account> parseAccounts() {
     final accountsById = <String, Account>{};
 
@@ -201,6 +275,11 @@ class KmyParser {
     return accountsById.values.toList();
   }
 
+  /// Parses all payee elements from the XML.
+  ///
+  /// Extracts payee information including ID and name.
+  ///
+  /// Returns a list of [Payee] objects parsed from the XML.
   List<Payee> parsePayees() {
     final payees = <Payee>[];
 
@@ -216,6 +295,13 @@ class KmyParser {
     return payees;
   }
 
+  /// Parses all transaction elements from the XML.
+  ///
+  /// Extracts transaction data including post date and associated splits.
+  /// Each transaction contains one or more splits representing the
+  /// debit/credit entries.
+  ///
+  /// Returns a list of [LedgerTransaction] objects parsed from the XML.
   List<LedgerTransaction> parseTransactions() {
     final transactions = <LedgerTransaction>[];
 
@@ -249,6 +335,16 @@ class KmyParser {
     return transactions;
   }
 
+  /// Parses all scheduled transaction elements from the XML.
+  ///
+  /// Extracts comprehensive schedule information including:
+  /// - Basic info (ID, name, type)
+  /// - Timing (start date, next due date, last payment)
+  /// - Frequency interpretation using [interpretKMyMoneySchedule]
+  /// - Payment method decoding
+  /// - Associated payee and account information
+  ///
+  /// Returns a list of [Schedule] objects parsed from the XML.
   List<Schedule> parseSchedules() {
     final schedules = <Schedule>[];
 
@@ -360,6 +456,19 @@ class KmyParser {
     return schedules;
   }
 
+  /// Determines the schedule group based on type, hint, or name.
+  ///
+  /// Uses multiple heuristics to categorize schedules:
+  /// 1. Explicit type codes (1=bills, 2=deposits, 3=transfers, 4=loans)
+  /// 2. Group hint text containing keywords
+  /// 3. Schedule name containing keywords
+  ///
+  /// Parameters:
+  /// - [type]: The numeric type code from KMyMoney
+  /// - [hint]: Text hint about the schedule type
+  /// - [name]: The schedule name for keyword analysis
+  ///
+  /// Returns the appropriate [ScheduleGroup].
   ScheduleGroup _groupFromTypeOrHint(String type, String hint, String name) {
     switch (type.trim()) {
       case '1':
@@ -392,6 +501,19 @@ class KmyParser {
     return ScheduleGroup.bills;
   }
 
+  /// Selects the primary split from a scheduled transaction.
+  ///
+  /// For scheduled transactions with multiple splits, determines which
+  /// split should be considered the "primary" one based on:
+  /// 1. Value sign preference (positive for deposits, negative for withdrawals)
+  /// 2. First split with a non-empty account ID
+  /// 3. First split as fallback
+  ///
+  /// Parameters:
+  /// - [scheduleNode]: The XML element containing the schedule
+  /// - [scheduleType]: The schedule type to determine value preference
+  ///
+  /// Returns the primary [XmlElement] split or null if no splits exist.
   XmlElement? _selectPrimaryScheduleSplit(
     XmlElement scheduleNode, {
     String scheduleType = '',
@@ -420,6 +542,15 @@ class KmyParser {
     return splits.first;
   }
 
+  /// Extracts all split elements from a scheduled transaction.
+  ///
+  /// Navigates the XML structure to find all SPLIT elements
+  /// within the TRANSACTION/SPLITS hierarchy.
+  ///
+  /// Parameters:
+  /// - [scheduleNode]: The XML element containing the schedule
+  ///
+  /// Returns a list of split [XmlElement] objects, possibly empty.
   List<XmlElement> _listScheduleSplits(XmlElement scheduleNode) {
     return scheduleNode
             .getElement('TRANSACTION')
@@ -429,6 +560,16 @@ class KmyParser {
         <XmlElement>[];
   }
 
+  /// Finds the first non-empty attribute value from a list of elements.
+  ///
+  /// Iterates through elements in order and returns the first
+  /// non-empty, non-whitespace value for the specified attribute.
+  ///
+  /// Parameters:
+  /// - [elements]: List of XML elements to search
+  /// - [attr]: The attribute name to look for
+  ///
+  /// Returns the first non-empty attribute value or empty string if none found.
   String _firstNonEmptyAttr(List<XmlElement> elements, String attr) {
     for (final el in elements) {
       final v = (el.getAttribute(attr) ?? '').trim();
@@ -437,12 +578,39 @@ class KmyParser {
     return '';
   }
 
+  /// Safely parses an integer from a string with fallback.
+  ///
+  /// Handles empty strings and invalid integer formats by
+  /// returning a specified fallback value instead of throwing.
+  ///
+  /// Parameters:
+  /// - [value]: The string to parse
+  /// - [fallback]: Value to return if parsing fails (defaults to 0)
+  ///
+  /// Returns the parsed integer or fallback value.
   int _parseIntSafe(String value, {int fallback = 0}) {
     final trimmed = value.trim();
     if (trimmed.isEmpty) return fallback;
     return int.tryParse(trimmed) ?? fallback;
   }
 
+  /// Decodes KMyMoney payment type bit flags into human-readable text.
+  ///
+  /// KMyMoney uses bit flags to encode payment methods:
+  /// - 1: Direct deposit
+  /// - 2: Direct debit
+  /// - 4: Manual deposit
+  /// - 8: Manual withdrawal
+  /// - 16: Write cheque
+  /// - 32: Standing order
+  /// - 64: Bank transfer
+  ///
+  /// Multiple flags can be combined, resulting in comma-separated descriptions.
+  ///
+  /// Parameters:
+  /// - [raw]: The raw payment type value (string number or empty)
+  ///
+  /// Returns decoded payment method description or original text if not a number.
   String _decodePaymentType(String raw) {
     final trimmed = raw.trim();
     if (trimmed.isEmpty) return '';
@@ -472,6 +640,19 @@ class KmyParser {
     return parts.join(', ');
   }
 
+  /// Parses KMyMoney date strings into DateTime objects.
+  ///
+  /// Handles two common KMyMoney date formats:
+  /// 1. 8-digit format (YYYYMMDD)
+  /// 2. ISO 8601 format (from DateTime.parse)
+  ///
+  /// For empty strings, returns a fallback date (1970-01-01)
+  /// to indicate an invalid/missing date.
+  ///
+  /// Parameters:
+  /// - [value]: The date string to parse
+  ///
+  /// Returns a [DateTime] object or fallback date for empty input.
   DateTime _parseKmyDate(String value) {
     final trimmed = value.trim();
 
