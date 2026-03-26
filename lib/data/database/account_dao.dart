@@ -1,3 +1,14 @@
+// Copyright (c) 2026 by Zafado.pl
+//
+// This file is part of the kmymoney_app Flutter project.
+//
+// SPDX-License-Identifier: MIT
+
+// Account Data Access Object
+//
+// Handles database operations for account data.
+// Provides CRUD operations and balance calculations.
+
 import 'package:sqflite/sqflite.dart';
 import '../../domain/models/account.dart';
 import 'app_database.dart';
@@ -6,12 +17,36 @@ import '../../domain/models/money.dart';
 import 'models/account_with_balance_row.dart';
 import 'models/account_type.dart';
 
+/// Data Access Object for account database operations.
+///
+/// This DAO provides methods for inserting, querying, and managing
+/// account data in the SQLite database. It handles batch operations
+/// for performance and notifies listeners of data changes.
+///
+/// Key features:
+/// - Batch insertion for multiple accounts
+/// - Balance calculation with transaction aggregation
+/// - Filtering by account type and status
+/// - Change notification for UI updates
 class AccountDao {
+  /// Inserts multiple accounts into the database.
+  ///
+  /// Uses batch operations for optimal performance when inserting
+  /// many accounts at once. Replaces existing accounts with
+  /// the same ID using conflict resolution.
+  ///
+  /// Parameters:
+  /// - [accounts]: List of accounts to insert
+  ///
+  /// Notifies listeners of database changes after insertion.
   Future<void> insertAccounts(List<Account> accounts) async {
+    // Get database instance for batch operation
     final db = await AppDatabase.instance.database;
 
+    // Create batch for efficient multiple inserts
     final batch = db.batch();
 
+    // Insert each account with proper type conversion
     for (final account in accounts) {
       batch.insert('accounts', {
         'id': account.id,
@@ -23,8 +58,9 @@ class AccountDao {
       }, conflictAlgorithm: ConflictAlgorithm.replace);
     }
 
+    // Execute batch and notify listeners
     await batch.commit(noResult: true);
-    // notify that accounts have been updated
+    // Notify that accounts have been updated
     DbChangeNotifier.instance.notify();
   }
 

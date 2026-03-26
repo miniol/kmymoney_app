@@ -1,3 +1,14 @@
+// Copyright (c) 2026 by Zafado.pl
+//
+// This file is part of the kmymoney_app Flutter project.
+//
+// SPDX-License-Identifier: MIT
+
+// Account List Screen
+//
+// Screen displaying list of financial accounts.
+// Provides filtering, navigation, and file operations.
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/kmy_file_provider.dart';
@@ -10,10 +21,34 @@ import '../../data/database/models/account_type.dart';
 // import '../../domain/models/money.dart';
 // import '../../data/database/models/account_with_balance_row.dart';
 
+/// Screen displaying a filtered list of financial accounts.
+///
+/// This screen shows accounts with their balances, allows filtering
+/// by account type and status, provides navigation to transaction
+/// details, and includes file loading functionality.
+///
+/// Features:
+/// - Account list with balances
+/// - Account type filtering
+/// - Navigation to transaction details
+/// - File picker for KMyMoney files
+/// - Loading and error state handling
 class AccountListScreen extends ConsumerWidget {
+  /// Creates the account list screen widget.
   const AccountListScreen({super.key});
 
+  /// Maps KMyMoney account type to appropriate icon.
+  ///
+  /// Converts KMyMoney string account types to Flutter icons
+  /// for visual representation in the UI. Each account type
+  /// gets a meaningful icon that represents its purpose.
+  ///
+  /// Parameters:
+  /// - [kmyType]: KMyMoney account type string
+  ///
+  /// Returns appropriate [IconData] for the account type.
   IconData _iconForAccountType(String kmyType) {
+    // Convert KMyMoney type to enum and map to icon
     final type = AccountTypeX.fromKmyType(kmyType);
 
     switch (type) {

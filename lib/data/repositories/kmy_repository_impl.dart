@@ -1,3 +1,14 @@
+// Copyright (c) 2026 by Zafado.pl
+//
+// This file is part of the kmymoney_app Flutter project.
+//
+// SPDX-License-Identifier: MIT
+
+// KMyMoney Repository Implementation
+//
+// Concrete implementation of the repository interface.
+// Orchestrates file loading, parsing, and database operations.
+
 import 'package:flutter/foundation.dart';
 
 import '../../domain/repositories/kmy_repository.dart';

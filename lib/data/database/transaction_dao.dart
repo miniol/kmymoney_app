@@ -1,3 +1,14 @@
+// Copyright (c) 2026 by Zafado.pl
+//
+// This file is part of the kmymoney_app Flutter project.
+//
+// SPDX-License-Identifier: MIT
+
+// Transaction Data Access Object
+//
+// Handles database operations for transaction data.
+// Provides CRUD operations for transactions and splits.
+
 import 'package:sqflite/sqflite.dart';
 import '../../domain/models/ledger_transaction.dart';
 import '../../domain/models/split.dart';
@@ -5,18 +16,43 @@ import '../../domain/models/money.dart';
 import 'app_database.dart';
 import 'db_change_notifier.dart';
 
+/// Data Access Object for transaction database operations.
+///
+/// This DAO provides methods for inserting, querying, and managing
+/// transaction data and their associated splits in SQLite database.
+/// Handles complex operations involving both transactions and splits.
+///
+/// Key features:
+/// - Batch insertion for multiple transactions
+/// - Atomic operations for transaction-split relationships
+/// - Change notification for UI updates
 class TransactionDao {
+  /// Inserts multiple transactions with their splits into the database.
+  ///
+  /// This method performs atomic batch operations to ensure data
+  /// consistency. Each transaction and all its splits are inserted
+  /// together in a single batch operation.
+  ///
+  /// Parameters:
+  /// - [transactions]: List of transactions to insert
+  ///
+  /// Notifies listeners of database changes after insertion.
   Future<void> insertTransactions(List<LedgerTransaction> transactions) async {
+    // Get database instance for batch operation
     final db = await AppDatabase.instance.database;
 
+    // Create batch for atomic operations
     final batch = db.batch();
 
+    // Insert each transaction and its associated splits
     for (final tx in transactions) {
+      // Insert transaction header
       batch.insert('transactions', {
         'id': tx.id,
         'post_date': tx.date.toIso8601String(),
       }, conflictAlgorithm: ConflictAlgorithm.replace);
 
+      // Insert all splits for this transaction
       for (final split in tx.splits) {
         batch.insert('splits', {
           'transaction_id': tx.id,
@@ -27,6 +63,7 @@ class TransactionDao {
       }
     }
 
+    // Execute batch and notify listeners
     await batch.commit(noResult: true);
     // notify that transactions have been updated
     DbChangeNotifier.instance.notify();
