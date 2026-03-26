@@ -74,7 +74,6 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   test: any
-  sqflite_common_ffi: any
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
@@ -85,7 +84,10 @@ dev_dependencies:
   
   # JSON serialization code generation
   json_serializable: ^6.7.1
-  build_runner: ^2.4.8
+
+  build_runner: any
+  build_test: any
+  build_web_compilers: any
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
