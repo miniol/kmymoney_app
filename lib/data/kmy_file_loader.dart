@@ -1,4 +1,4 @@
-// Copyright (c) 2026
+// Copyright (c) 2026 by Zafado.pl
 //
 // This file is part of the kmymoney_app Flutter project.
 //
