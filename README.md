@@ -98,7 +98,7 @@ For desktop development, ensure you have:
 - **📢 Change Notifications**: Manual change propagation for reactive updates
 - **🔍 Complex Queries**: Joins and aggregations for rich data presentation
 
-## 🛠️ Technology Stack
+## ⚙ Technology Stack
 
 ### Core Framework
 - **[Flutter](https://flutter.dev/)**: Cross-platform UI framework
