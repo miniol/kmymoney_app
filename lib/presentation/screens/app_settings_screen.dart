@@ -101,7 +101,7 @@ class AppSettingsScreen extends ConsumerWidget {
                       type: FileType.any,
                     );
                     final path = result?.files.single.path;
-                    if (path != null) return;
+                    if (path == null) return;
                     await notifier.setPath(path);
                   },
                 ),

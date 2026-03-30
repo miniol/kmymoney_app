@@ -9,14 +9,14 @@
 // Main dashboard screen for the KMyMoney app.
 // Displays account summaries and upcoming schedules.
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
+import 'package:kmymoney_app/presentation/providers/kmy_local_path_provider.dart';
 import '../../data/database/models/account_with_balance_row.dart';
 import '../../data/database/models/schedule_with_details_row.dart';
 import '../providers/home_dashboard_providers.dart';
 import '../providers/kmy_file_provider.dart';
+import 'app_settings_screen.dart';
 
 /// Main dashboard screen for the KMyMoney application.
 ///
@@ -119,21 +119,49 @@ class HomeScreen extends ConsumerWidget {
     final soonestSchedulesAsync = ref.watch(soonestSchedulesProvider);
     final preferredAccountsAsync = ref.watch(preferredAccountsProvider);
     final importState = ref.watch(kmyFileProvider);
+    final localPathAsync = ref.watch(kmyLocalPathProvider);
+    final localPath = localPathAsync.value;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Home')),
       floatingActionButton: FloatingActionButton(
-        onPressed: importState.isLoading
+        onPressed: importState.isLoading || localPathAsync.isLoading
             ? null
             : () async {
-                final result = await FilePicker.platform.pickFiles(
-                  type: FileType.any,
-                );
+                if (localPath == null || localPath.trim().isEmpty) {
+                  final openSettings = await showDialog<bool>(
+                    context: context,
+                    builder: (context) {
+                      return AlertDialog(
+                        title: const Text('No data file configured'),
+                        content: const Text(
+                          'Configure the local .kmy file path in Settings first.',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text('Cancel'),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            child: const Text('Open settings'),
+                          ),
+                        ],
+                      );
+                    },
+                  );
 
-                if (result != null && result.files.single.path != null) {
-                  final path = result.files.single.path!;
-                  await ref.read(kmyFileProvider.notifier).loadFile(path);
+                  if (openSettings == true && context.mounted) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const AppSettingsScreen(),
+                      ),
+                    );
+                  }
+                  return;
                 }
+                await ref.read(kmyFileProvider.notifier).loadFile(localPath);
               },
         child: const Icon(Icons.folder_open),
       ),

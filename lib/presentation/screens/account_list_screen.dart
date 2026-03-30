@@ -11,10 +11,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../providers/kmy_file_provider.dart';
 import '../providers/account_list_provider.dart';
 import 'account_transactions_screen.dart';
-import 'package:file_picker/file_picker.dart';
 import 'settings_screen.dart';
 import '../../data/database/models/account_type.dart';
 
@@ -25,13 +23,12 @@ import '../../data/database/models/account_type.dart';
 ///
 /// This screen shows accounts with their balances, allows filtering
 /// by account type and status, provides navigation to transaction
-/// details, and includes file loading functionality.
+/// details.
 ///
 /// Features:
 /// - Account list with balances
 /// - Account type filtering
 /// - Navigation to transaction details
-/// - File picker for KMyMoney files
 /// - Loading and error state handling
 class AccountListScreen extends ConsumerWidget {
   /// Creates the account list screen widget.
@@ -108,22 +105,6 @@ class AccountListScreen extends ConsumerWidget {
             },
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          final result = await FilePicker.platform.pickFiles(
-            type: FileType.any,
-          );
-
-          if (result != null && result.files.single.path != null) {
-            final path = result.files.single.path!;
-
-            // print('Selected file: $path');
-
-            ref.read(kmyFileProvider.notifier).loadFile(path);
-          }
-        },
-        child: const Icon(Icons.folder_open),
       ),
       body: accountListAsync.when(
         data: (accounts) {
