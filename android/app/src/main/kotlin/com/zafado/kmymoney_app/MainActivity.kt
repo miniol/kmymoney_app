@@ -1,4 +1,4 @@
-package com.yourcompany.finance_app
+package com.zafado.kmymoney_app
 
 import io.flutter.embedding.android.FlutterActivity
 

@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.yourcompany" "\0"
-            VALUE "FileDescription", "finance_app" "\0"
+            VALUE "CompanyName", "com.zafado" "\0"
+            VALUE "FileDescription", "kmymoney_app" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "finance_app" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.yourcompany. All rights reserved." "\0"
-            VALUE "OriginalFilename", "finance_app.exe" "\0"
-            VALUE "ProductName", "finance_app" "\0"
+            VALUE "InternalName", "kmymoney_app" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 Zafaddo. All rights reserved." "\0"
+            VALUE "OriginalFilename", "kmymoney_app" "\0"
+            VALUE "ProductName", "kmymoney_app" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
