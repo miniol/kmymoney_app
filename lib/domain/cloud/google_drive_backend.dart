@@ -91,7 +91,7 @@ class GoogleDriveBackend implements CloudFileBackend {
   Future<void> signIn() async {
     final account = await _googleSignIn.signIn();
     if (account == null) {
-      throw StateError('Google Drive: sing-in aborted.');
+      throw StateError('Google Drive: sign-in aborted.');
     }
   }
 

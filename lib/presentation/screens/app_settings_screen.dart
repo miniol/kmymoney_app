@@ -15,6 +15,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/app_settings_provider.dart';
 import 'package:file_picker/file_picker.dart';
 import '../providers/kmy_local_path_provider.dart';
+import '../providers/cloud_sync_settings_provider.dart';
+import '../../domain/cloud/cloud_file_backend.dart';
+import '../../domain/cloud/google_drive_backend.dart';
 
 /// Settings screen for application preferences and data management.
 ///
@@ -53,6 +56,8 @@ class AppSettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(appSettingsProvider);
     final notifier = ref.read(appSettingsProvider.notifier);
+    final cloudSettingsAsync = ref.watch(cloudSyncSettingsProvider);
+    final cloudSettingsNotifier = ref.read(cloudSyncSettingsProvider.notifier);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -118,6 +123,172 @@ class AppSettingsScreen extends ConsumerWidget {
           ),
 
           const Divider(),
+          const ListTile(title: Text('Cloud sync')),
+
+          cloudSettingsAsync.when(
+            data: (cloudSettings) {
+              return ListTile(
+                title: const Text('Provider'),
+                trailing: DropdownButton<CloudProviderType>(
+                  value: cloudSettings.provider,
+                  onChanged: (value) async {
+                    if (value == null) return;
+                    await cloudSettingsNotifier.setProvider(value);
+                  },
+                  items: const [
+                    DropdownMenuItem(
+                      value: CloudProviderType.googleDrive,
+                      child: Text('Google Drive'),
+                    ),
+                    DropdownMenuItem(
+                      value: CloudProviderType.oneDrive,
+                      child: Text('OneDrive'),
+                    ),
+                  ],
+                ),
+              );
+            },
+            loading: () => const ListTile(
+              title: Text('Provider'),
+              subtitle: Text('Loading...'),
+            ),
+            error: (e, _) => ListTile(
+              title: const Text('Provider'),
+              subtitle: Text(e.toString()),
+            ),
+          ),
+
+          cloudSettingsAsync.when(
+            data: (cloudSettings) {
+              return Column(
+                children: [
+                  ListTile(
+                    title: const Text('Account'),
+                    subtitle: Text(
+                      cloudSettings.provider == CloudProviderType.googleDrive
+                          ? 'Google Drive'
+                          : 'OneDrive',
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextButton(
+                          onPressed: () async {
+                            if (cloudSettings.provider ==
+                                CloudProviderType.googleDrive) {
+                              final backend = GoogleDriveBackend();
+                              await backend.signIn();
+                              return;
+                            }
+
+                            if (context.mounted) {
+                              showDialog<void>(
+                                context: context,
+                                builder: (_) => const AlertDialog(
+                                  title: Text('Not implemented'),
+                                  content: Text(
+                                    'OneDrive sign-in will be added next.',
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                          child: const Text('Connect'),
+                        ),
+                        TextButton(
+                          onPressed: () async {
+                            if (cloudSettings.provider ==
+                                CloudProviderType.googleDrive) {
+                              final backend = GoogleDriveBackend();
+                              await backend.signOut();
+                              return;
+                            }
+
+                            if (context.mounted) {
+                              showDialog<void>(
+                                context: context,
+                                builder: (_) => const AlertDialog(
+                                  title: Text('Not implemented'),
+                                  content: Text(
+                                    'OneDrive sign-out will be added next.',
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                          child: const Text('Disconnect'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  ListTile(
+                    title: const Text('Remote .kmy file'),
+                    subtitle: Text(
+                      cloudSettings.remoteFileName ??
+                          cloudSettings
+                              .remoteFieldId ?? // keep your current field name
+                          'Not selected',
+                    ),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.cloud),
+                      onPressed: () async {
+                        if (cloudSettings.provider !=
+                            CloudProviderType.googleDrive) {
+                          if (!context.mounted) return;
+                          showDialog<void>(
+                            context: context,
+                            builder: (_) => const AlertDialog(
+                              title: Text('Not implemented'),
+                              content: Text(
+                                'OneDrive file picker will be added next.',
+                              ),
+                            ),
+                          );
+                          return;
+                        }
+
+                        final backend = GoogleDriveBackend();
+                        await backend.signIn(); // ensures signed in
+
+                        final files = await backend.listKmyFiles(pageSize: 50);
+                        if (!context.mounted) return;
+
+                        final selected = await showDialog<RemoteFileInfo>(
+                          context: context,
+                          builder: (context) {
+                            return SimpleDialog(
+                              title: const Text('Select .kmy file'),
+                              children: files
+                                  .map(
+                                    (f) => SimpleDialogOption(
+                                      onPressed: () =>
+                                          Navigator.pop(context, f),
+                                      child: Text(
+                                        f.name.isEmpty ? f.id : f.name,
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                            );
+                          },
+                        );
+
+                        if (selected == null) return;
+
+                        await cloudSettingsNotifier.setRemoteFile(
+                          id: selected.id,
+                          name: selected.name,
+                        );
+                      },
+                    ),
+                  ),
+                  const Divider(),
+                ],
+              );
+            },
+            loading: () => const SizedBox.shrink(),
+            error: (_, _) => const SizedBox.shrink(),
+          ),
 
           ListTile(
             title: const Text('Language'),
