@@ -30,10 +30,12 @@ enum CloudProviderType { googleDrive, oneDrive }
 /// - [provider]: The selected cloud storage service
 /// - [remoteFieldId]: Unique identifier for the remote file
 /// - [remoteFileName]: Name of the remote file in cloud storage
+/// - [oneDriveClientId]: Client ID for OneDrive authentication
 class CloudSyncSettings {
   final CloudProviderType provider;
   final String? remoteFieldId;
   final String? remoteFileName;
+  final String? oneDriveClientId;
 
   /// Creates cloud sync settings with specified configuration.
   ///
@@ -41,10 +43,12 @@ class CloudSyncSettings {
   /// - [provider]: The cloud storage service to use
   /// - [remoteFieldId]: Unique identifier for the remote file (nullable)
   /// - [remoteFileName]: Name of the remote file (nullable)
+  /// - [oneDriveClientId]: Client ID for OneDrive authentication (nullable)
   const CloudSyncSettings({
     required this.provider,
     required this.remoteFieldId,
     required this.remoteFileName,
+    required this.oneDriveClientId,
   });
 
   /// Creates default cloud sync settings.
@@ -58,6 +62,7 @@ class CloudSyncSettings {
     provider: CloudProviderType.googleDrive,
     remoteFieldId: null,
     remoteFileName: null,
+    oneDriveClientId: null,
   );
 
   /// Creates a copy of this settings with updated values.
@@ -70,17 +75,20 @@ class CloudSyncSettings {
   /// - [provider]: New cloud provider (optional)
   /// - [remoteFieldId]: New remote file ID (optional)
   /// - [remoteFileName]: New remote file name (optional)
+  /// - [oneDriveClientId]: New OneDrive client ID (optional)
   ///
   /// Returns new [CloudSyncSettings] with updated values.
   CloudSyncSettings copyWith({
     CloudProviderType? provider,
     String? remoteFieldId,
     String? remoteFileName,
+    String? oneDriveClientId,
   }) {
     return CloudSyncSettings(
       provider: provider ?? this.provider,
       remoteFieldId: remoteFieldId,
       remoteFileName: remoteFileName,
+      oneDriveClientId: oneDriveClientId,
     );
   }
 
@@ -94,6 +102,7 @@ class CloudSyncSettings {
     'provider': provider.name,
     'remoteFieldId': remoteFieldId,
     'remoteFileName': remoteFileName,
+    'oneDriveClientId': oneDriveClientId,
   };
 
   /// Creates settings from JSON data.
@@ -116,6 +125,7 @@ class CloudSyncSettings {
       provider: provider,
       remoteFieldId: json['remoteFieldId'] as String?,
       remoteFileName: json['remoteFileName'] as String?,
+      oneDriveClientId: json['oneDriveClientId'] as String?,
     );
   }
 }
@@ -209,6 +219,24 @@ class CloudSyncSettingsNotifier extends AsyncNotifier<CloudSyncSettings> {
   Future<void> _persist(CloudSyncSettings settings) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_key, jsonEncode(settings.toJson()));
+  }
+
+  /// Updates the OneDrive client ID and persists the change.
+  ///
+  /// Sets the client ID for OneDrive authentication. If the provided
+  /// client ID is null or empty, it will be stored as null.
+  ///
+  /// Parameters:
+  /// - [clientId]: The OneDrive client ID to use for authentication
+  Future<void> setOneDriveClientId(String? clientId) async {
+    final current = state.value ?? CloudSyncSettings.defaults();
+    final next = current.copyWith(
+      oneDriveClientId: (clientId == null || clientId.trim().isEmpty)
+          ? null
+          : clientId.trim(),
+    );
+    await _persist(next);
+    state = AsyncData(next);
   }
 }
 

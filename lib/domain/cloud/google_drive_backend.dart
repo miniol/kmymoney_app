@@ -86,9 +86,19 @@ class GoogleDriveBackend implements CloudFileBackend {
   /// account selection dialog and request user consent.
   /// Throws [StateError] if user cancels the sign-in process.
   ///
+  /// If user is already signed in, attempts silent sign-in first.
+  /// This allows for automatic re-authentication without user interaction
+  /// when credentials are still valid.
+  ///
   /// Completes when user successfully authenticates.
   @override
   Future<void> signIn() async {
+    final alreadySignedIn = await _googleSignIn.isSignedIn();
+    if (alreadySignedIn) {
+      final account = await _googleSignIn.signInSilently();
+      if (account != null) return;
+    }
+
     final account = await _googleSignIn.signIn();
     if (account == null) {
       throw StateError('Google Drive: sign-in aborted.');

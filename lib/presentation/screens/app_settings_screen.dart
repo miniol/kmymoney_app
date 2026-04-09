@@ -9,53 +9,38 @@
 // Settings screen for application preferences.
 // Provides theme, locale, and data file configuration.
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../providers/app_settings_provider.dart';
-import 'package:file_picker/file_picker.dart';
-import '../providers/kmy_local_path_provider.dart';
-import '../providers/cloud_sync_settings_provider.dart';
 import '../../domain/cloud/cloud_file_backend.dart';
-import '../../domain/cloud/google_drive_backend.dart';
+import '../providers/app_settings_provider.dart';
+import '../providers/cloud_sync_settings_provider.dart';
+import '../providers/kmy_local_path_provider.dart';
+import '../providers/cloud_backend_provider.dart';
 
-/// Settings screen for application preferences and data management.
-///
-/// This screen provides UI controls for configuring application
-/// settings including theme mode, language preferences, and
-/// KMyMoney data file selection. It uses Riverpod providers
-/// for reactive state management and persists user preferences.
-///
-/// Features:
-/// - Theme mode selection (system, light, dark)
-/// - Language configuration
-/// - KMyMoney file picker with persistent storage
-/// - Clear configured data file option
-/// - Real-time state updates with loading indicators
-class AppSettingsScreen extends ConsumerWidget {
-  /// Creates the app settings screen widget.
+class AppSettingsScreen extends ConsumerStatefulWidget {
   const AppSettingsScreen({super.key});
 
-  /// Builds the settings screen UI with theme, language, and data options.
-  ///
-  /// Constructs a settings screen with sections for:
-  /// - Look & Feel: Theme mode selection (system, light, dark)
-  /// - Data: KMyMoney file picker and clear option
-  /// - Language: Locale selection dropdown
-  ///
-  /// Uses Riverpod providers for reactive state management:
-  /// - [appSettingsProvider] for theme and locale settings
-  /// - [kmyLocalPathProvider] for data file path
-  ///
-  /// Parameters:
-  /// - [context]: Build context for widget creation
-  /// - [ref]: WidgetRef for accessing providers
-  ///
-  /// Returns a [Scaffold] with settings controls in a [ListView].
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AppSettingsScreen> createState() => _AppSettingsScreenState();
+}
+
+class _AppSettingsScreenState extends ConsumerState<AppSettingsScreen> {
+  final TextEditingController _oneDriveClientIdController =
+      TextEditingController();
+
+  @override
+  void dispose() {
+    _oneDriveClientIdController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final settings = ref.watch(appSettingsProvider);
     final notifier = ref.read(appSettingsProvider.notifier);
+
     final cloudSettingsAsync = ref.watch(cloudSyncSettingsProvider);
     final cloudSettingsNotifier = ref.read(cloudSyncSettingsProvider.notifier);
 
@@ -82,13 +67,11 @@ class AppSettingsScreen extends ConsumerWidget {
               ],
             ),
           ),
-
           const ListTile(title: Text('Data')),
-
           Consumer(
             builder: (context, ref, _) {
               final localPathAsync = ref.watch(kmyLocalPathProvider);
-              final notifier = ref.read(kmyLocalPathProvider.notifier);
+              final localPathNotifier = ref.read(kmyLocalPathProvider.notifier);
 
               final subtitle = localPathAsync.when(
                 data: (path) => path ?? 'Not configured',
@@ -107,13 +90,12 @@ class AppSettingsScreen extends ConsumerWidget {
                     );
                     final path = result?.files.single.path;
                     if (path == null) return;
-                    await notifier.setPath(path);
+                    await localPathNotifier.setPath(path);
                   },
                 ),
               );
             },
           ),
-
           ListTile(
             title: const Text('Clear configured file'),
             trailing: const Icon(Icons.delete_outline),
@@ -121,10 +103,8 @@ class AppSettingsScreen extends ConsumerWidget {
               await ref.read(kmyLocalPathProvider.notifier).setPath(null);
             },
           ),
-
           const Divider(),
           const ListTile(title: Text('Cloud sync')),
-
           cloudSettingsAsync.when(
             data: (cloudSettings) {
               return ListTile(
@@ -157,9 +137,12 @@ class AppSettingsScreen extends ConsumerWidget {
               subtitle: Text(e.toString()),
             ),
           ),
-
           cloudSettingsAsync.when(
             data: (cloudSettings) {
+              final desired = cloudSettings.oneDriveClientId ?? '';
+              if (_oneDriveClientIdController.text != desired) {
+                _oneDriveClientIdController.text = desired;
+              }
               return Column(
                 children: [
                   ListTile(
@@ -174,46 +157,58 @@ class AppSettingsScreen extends ConsumerWidget {
                       children: [
                         TextButton(
                           onPressed: () async {
-                            if (cloudSettings.provider ==
-                                CloudProviderType.googleDrive) {
-                              final backend = GoogleDriveBackend();
-                              await backend.signIn();
-                              return;
-                            }
+                            final backend = ref.read(
+                              activeCloudBackendProvider,
+                            );
 
-                            if (context.mounted) {
+                            if (backend == null) {
+                              if (!context.mounted) return;
                               showDialog<void>(
                                 context: context,
                                 builder: (_) => const AlertDialog(
-                                  title: Text('Not implemented'),
+                                  title: Text('Cloud backend not ready'),
                                   content: Text(
-                                    'OneDrive sign-in will be added next.',
+                                    'For OneDrive, set OneDrive Client ID in Settings first.',
                                   ),
                                 ),
                               );
+                              return;
+                            }
+                            try {
+                              await backend.signIn();
+                            } catch (e) {
+                              if (!context.mounted) return;
+                              showDialog<void>(
+                                context: context,
+                                builder: (_) => AlertDialog(
+                                  title: Text('Sign-in failed'),
+                                  content: Text(e.toString()),
+                                ),
+                              );
+                              return;
                             }
                           },
                           child: const Text('Connect'),
                         ),
                         TextButton(
                           onPressed: () async {
-                            if (cloudSettings.provider ==
-                                CloudProviderType.googleDrive) {
-                              final backend = GoogleDriveBackend();
-                              await backend.signOut();
-                              return;
-                            }
+                            final backend = ref.read(
+                              activeCloudBackendProvider,
+                            );
+                            if (backend == null) return;
 
-                            if (context.mounted) {
+                            try {
+                              await backend.signOut();
+                            } catch (e) {
+                              if (!context.mounted) return;
                               showDialog<void>(
                                 context: context,
-                                builder: (_) => const AlertDialog(
-                                  title: Text('Not implemented'),
-                                  content: Text(
-                                    'OneDrive sign-out will be added next.',
-                                  ),
+                                builder: (_) => AlertDialog(
+                                  title: Text('Sign-out failed'),
+                                  content: Text(e.toString()),
                                 ),
                               );
+                              return;
                             }
                           },
                           child: const Text('Disconnect'),
@@ -221,34 +216,57 @@ class AppSettingsScreen extends ConsumerWidget {
                       ],
                     ),
                   ),
+                  if (cloudSettings.provider == CloudProviderType.oneDrive)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: TextField(
+                        decoration: const InputDecoration(
+                          labelText: 'OneDrive Client ID',
+                        ),
+                        controller: _oneDriveClientIdController,
+                        onSubmitted: (v) =>
+                            cloudSettingsNotifier.setOneDriveClientId(v),
+                      ),
+                    ),
                   ListTile(
                     title: const Text('Remote .kmy file'),
                     subtitle: Text(
                       cloudSettings.remoteFileName ??
-                          cloudSettings
-                              .remoteFieldId ?? // keep your current field name
+                          cloudSettings.remoteFieldId ??
                           'Not selected',
                     ),
                     trailing: IconButton(
                       icon: const Icon(Icons.cloud),
                       onPressed: () async {
-                        if (cloudSettings.provider !=
-                            CloudProviderType.googleDrive) {
+                        final backend = ref.read(activeCloudBackendProvider);
+
+                        if (backend == null) {
                           if (!context.mounted) return;
                           showDialog<void>(
                             context: context,
                             builder: (_) => const AlertDialog(
-                              title: Text('Not implemented'),
+                              title: Text('Cloud backend not ready'),
                               content: Text(
-                                'OneDrive file picker will be added next.',
+                                'For OneDrive, set OneDrive Client ID in Settings first.',
                               ),
                             ),
                           );
                           return;
                         }
 
-                        final backend = GoogleDriveBackend();
-                        await backend.signIn(); // ensures signed in
+                        try {
+                          await backend.signIn();
+                        } catch (e) {
+                          if (!context.mounted) return;
+                          showDialog<void>(
+                            context: context,
+                            builder: (_) => AlertDialog(
+                              title: Text('Sign-in failed'),
+                              content: Text(e.toString()),
+                            ),
+                          );
+                          return;
+                        }
 
                         final files = await backend.listKmyFiles(pageSize: 50);
                         if (!context.mounted) return;
@@ -289,7 +307,6 @@ class AppSettingsScreen extends ConsumerWidget {
             loading: () => const SizedBox.shrink(),
             error: (_, _) => const SizedBox.shrink(),
           ),
-
           ListTile(
             title: const Text('Language'),
             trailing: DropdownButton<Locale>(
