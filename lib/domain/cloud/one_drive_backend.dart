@@ -132,9 +132,7 @@ class OneDriveBackend implements CloudFileBackend {
       ),
     );
 
-    if (refreshed == null ||
-        refreshed.accessToken == null ||
-        refreshed.accessToken!.isEmpty) {
+    if (refreshed.accessToken?.isEmpty ?? true) {
       throw StateError('OneDrive: refresh token exchange failed.');
     }
 
