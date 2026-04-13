@@ -28,27 +28,39 @@ enum CloudProviderType { googleDrive, oneDrive }
 ///
 /// Properties:
 /// - [provider]: The selected cloud storage service
-/// - [remoteFieldId]: Unique identifier for the remote file
+/// - [remoteFileId]: Unique identifier for the remote file
 /// - [remoteFileName]: Name of the remote file in cloud storage
 /// - [oneDriveClientId]: Client ID for OneDrive authentication
+/// - [lastRemoteVersion]: Last known version of the remote file
+/// - [lastLocalHash]: Last known hash of the local file
+/// - [lastSyncTimestamp]: Timestamp of the last sync
 class CloudSyncSettings {
   final CloudProviderType provider;
-  final String? remoteFieldId;
+  final String? remoteFileId;
   final String? remoteFileName;
   final String? oneDriveClientId;
+  final String? lastRemoteVersion;
+  final String? lastLocalHash;
+  final int? lastSyncTimestamp;
 
   /// Creates cloud sync settings with specified configuration.
   ///
   /// Parameters:
   /// - [provider]: The cloud storage service to use
-  /// - [remoteFieldId]: Unique identifier for the remote file (nullable)
+  /// - [remoteFileId]: Unique identifier for the remote file (nullable)
   /// - [remoteFileName]: Name of the remote file (nullable)
   /// - [oneDriveClientId]: Client ID for OneDrive authentication (nullable)
+  /// - [lastRemoteVersion]: Last known version of the remote file (nullable)
+  /// - [lastLocalHash]: Last known hash of the local file (nullable)
+  /// - [lastSyncTimestamp]: Timestamp of the last sync (nullable)
   const CloudSyncSettings({
     required this.provider,
-    required this.remoteFieldId,
+    required this.remoteFileId,
     required this.remoteFileName,
     required this.oneDriveClientId,
+    required this.lastRemoteVersion,
+    required this.lastLocalHash,
+    required this.lastSyncTimestamp,
   });
 
   /// Creates default cloud sync settings.
@@ -60,9 +72,12 @@ class CloudSyncSettings {
   /// Returns default [CloudSyncSettings] instance.
   factory CloudSyncSettings.defaults() => const CloudSyncSettings(
     provider: CloudProviderType.googleDrive,
-    remoteFieldId: null,
+    remoteFileId: null,
     remoteFileName: null,
     oneDriveClientId: null,
+    lastRemoteVersion: null,
+    lastLocalHash: null,
+    lastSyncTimestamp: null,
   );
 
   /// Creates a copy of this settings with updated values.
@@ -73,22 +88,28 @@ class CloudSyncSettings {
   ///
   /// Parameters:
   /// - [provider]: New cloud provider (optional)
-  /// - [remoteFieldId]: New remote file ID (optional)
+  /// - [remoteFileId]: New remote file ID (optional)
   /// - [remoteFileName]: New remote file name (optional)
   /// - [oneDriveClientId]: New OneDrive client ID (optional)
   ///
   /// Returns new [CloudSyncSettings] with updated values.
   CloudSyncSettings copyWith({
     CloudProviderType? provider,
-    String? remoteFieldId,
+    String? remoteFileId,
     String? remoteFileName,
     String? oneDriveClientId,
+    String? lastRemoteVersion,
+    String? lastLocalHash,
+    int? lastSyncTimestamp,
   }) {
     return CloudSyncSettings(
       provider: provider ?? this.provider,
-      remoteFieldId: remoteFieldId,
+      remoteFileId: remoteFileId,
       remoteFileName: remoteFileName,
       oneDriveClientId: oneDriveClientId,
+      lastRemoteVersion: lastRemoteVersion ?? this.lastRemoteVersion,
+      lastLocalHash: lastLocalHash ?? this.lastLocalHash,
+      lastSyncTimestamp: lastSyncTimestamp ?? this.lastSyncTimestamp,
     );
   }
 
@@ -100,9 +121,12 @@ class CloudSyncSettings {
   /// Returns a [Map<String, dynamic>] representation of the settings.
   Map<String, dynamic> toJson() => {
     'provider': provider.name,
-    'remoteFieldId': remoteFieldId,
+    'remoteFileId': remoteFileId,
     'remoteFileName': remoteFileName,
     'oneDriveClientId': oneDriveClientId,
+    'lastRemoteVersion': lastRemoteVersion,
+    'lastLocalHash': lastLocalHash,
+    'lastSyncTimestamp': lastSyncTimestamp,
   };
 
   /// Creates settings from JSON data.
@@ -121,11 +145,17 @@ class CloudSyncSettings {
       (p) => p.name == providerName,
       orElse: () => CloudProviderType.googleDrive,
     );
+    // Backward compatibility: remoteFileId was previously called remoteFieldId
+    final remoteFileId =
+        (json['remoteFileId'] as String?) ?? (json['remoteFieldId'] as String?);
     return CloudSyncSettings(
       provider: provider,
-      remoteFieldId: json['remoteFieldId'] as String?,
+      remoteFileId: remoteFileId,
       remoteFileName: json['remoteFileName'] as String?,
       oneDriveClientId: json['oneDriveClientId'] as String?,
+      lastRemoteVersion: json['lastRemoteVersion'] as String?,
+      lastLocalHash: json['lastLocalHash'] as String?,
+      lastSyncTimestamp: json['lastSyncTimestamp'] as int?,
     );
   }
 }
@@ -204,7 +234,7 @@ class CloudSyncSettingsNotifier extends AsyncNotifier<CloudSyncSettings> {
     required String? name,
   }) async {
     final current = state.value ?? CloudSyncSettings.defaults();
-    final next = current.copyWith(remoteFieldId: id, remoteFileName: name);
+    final next = current.copyWith(remoteFileId: id, remoteFileName: name);
     await _persist(next);
     state = AsyncData(next);
   }
@@ -234,6 +264,31 @@ class CloudSyncSettingsNotifier extends AsyncNotifier<CloudSyncSettings> {
       oneDriveClientId: (clientId == null || clientId.trim().isEmpty)
           ? null
           : clientId.trim(),
+    );
+    await _persist(next);
+    state = AsyncData(next);
+  }
+
+  /// Sets the synchronization baseline values and persists the change.
+  ///
+  /// Updates the last remote version, last local hash, and last sync timestamp
+  /// for tracking synchronization state. These values are used to determine
+  /// whether a file has changed since the last sync.
+  ///
+  /// Parameters:
+  /// - [lastRemoteVersion]: The version hash from the remote cloud storage
+  /// - [lastLocalHash]: The hash of the local file content
+  /// - [lastSyncAt]: The timestamp of the last successful sync
+  Future<void> setSyncBaseline({
+    required String? lastRemoteVersion,
+    required String? lastLocalHash,
+    required DateTime? lastSyncAt,
+  }) async {
+    final current = state.value ?? CloudSyncSettings.defaults();
+    final next = current.copyWith(
+      lastRemoteVersion: lastRemoteVersion,
+      lastLocalHash: lastLocalHash,
+      lastSyncTimestamp: lastSyncAt?.millisecondsSinceEpoch,
     );
     await _persist(next);
     state = AsyncData(next);

@@ -232,7 +232,7 @@ class _AppSettingsScreenState extends ConsumerState<AppSettingsScreen> {
                     title: const Text('Remote .kmy file'),
                     subtitle: Text(
                       cloudSettings.remoteFileName ??
-                          cloudSettings.remoteFieldId ??
+                          cloudSettings.remoteFileId ??
                           'Not selected',
                     ),
                     trailing: IconButton(
