@@ -9,6 +9,7 @@
 // Concrete implementation of cloud backend for Google Drive.
 // Handles authentication and file operations for Google Drive.
 
+import 'dart:typed_data';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:extension_google_sign_in_as_googleapis_auth/extension_google_sign_in_as_googleapis_auth.dart';
@@ -150,5 +151,85 @@ class GoogleDriveBackend implements CloudFileBackend {
         .where((f) => (f.id ?? '').trim().isNotEmpty)
         .map((f) => RemoteFileInfo(id: f.id!, name: (f.name ?? '').trim()))
         .toList();
+  }
+
+  ///
+  /// Gets metadata for a file from Google Drive by its remote file ID.
+  ///
+  /// Throws:
+  /// - [StateError] if not authenticated or metadata retrieval fails
+  /// - [ApiException] for Google Drive API errors
+  ///
+  /// Returns:
+  /// - [RemoteFileMetadata] containing file metadata
+  ///
+  /// Parameters:
+  /// - [remoteFielId] The ID of the file to get metadata for
+  @override
+  Future<RemoteFileMetadata> getMetadata(String remoteFileId) async {
+    final api = await _getDriveApi();
+
+    final result = await api.files.get(
+      remoteFileId,
+      $fields: 'id,name,modifiedTime,md5Checksum,version,size',
+    );
+
+    if (result is! drive.File) {
+      throw StateError('Google Drive: metadata request did not return a File.');
+    }
+    final f = result;
+
+    final id = f.id ?? remoteFileId;
+    final name = f.name ?? '';
+    final modifiedRaw = f.modifiedTime;
+    if (modifiedRaw == null) {
+      throw StateError('Google Drive: file has no modifiedTime.');
+    }
+
+    final versionTag = (f.md5Checksum?.trim().isNotEmpty ?? false)
+        ? f.md5Checksum!
+        : (f.version?.toString() ?? '');
+
+    final size = f.size == null ? null : int.tryParse(f.size!);
+
+    return RemoteFileMetadata(
+      id: id,
+      name: name,
+      versionTag: versionTag,
+      modifiedAt: modifiedRaw,
+      size: size,
+    );
+  }
+
+  ///
+  /// Downloads a file from Google Drive by its remote file ID.
+  ///
+  /// Throws:
+  /// - [StateError] if not authenticated or download fails
+  /// - [ApiException] for Google Drive API errors
+  ///
+  /// Returns:
+  /// - [List<int>] containing the file data
+  ///
+  /// Parameters:
+  /// - [remoteFileId] The ID of the file to download
+  @override
+  Future<List<int>> download(String remoteFileId) async {
+    final api = await _getDriveApi();
+
+    final media = await api.files.get(
+      remoteFileId,
+      downloadOptions: drive.DownloadOptions.fullMedia,
+    );
+
+    if (media is! drive.Media) {
+      throw StateError('Google Drive: download did not return media.');
+    }
+
+    final chunks = <int>[];
+    await for (final chunk in media.stream) {
+      chunks.addAll(chunk);
+    }
+    return Uint8List.fromList(chunks);
   }
 }

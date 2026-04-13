@@ -42,6 +42,33 @@ class RemoteFileInfo {
   const RemoteFileInfo({required this.id, required this.name});
 }
 
+/// Metadata for a remote file.
+///
+/// This class encapsulates the metadata needed to
+/// identify and reference a file stored in cloud storage.
+///
+/// Properties:
+/// - [id]: Unique identifier for the remote file (cloud-specific)
+/// - [name]: Human-readable name of the remote file
+/// - [versionTag]: Version tag for the remote file (cloud-specific)
+/// - [modifiedAt]: Last modified date of the remote file
+/// - [size]: Size of the remote file in bytes
+class RemoteFileMetadata {
+  final String id;
+  final String name;
+  final String versionTag;
+  final DateTime modifiedAt;
+  final int? size;
+
+  RemoteFileMetadata({
+    required this.id,
+    required this.name,
+    required this.versionTag,
+    required this.modifiedAt,
+    required this.size,
+  });
+}
+
 /// Abstract interface for cloud storage backends.
 ///
 /// This abstract class defines the contract that all cloud storage
@@ -119,4 +146,35 @@ abstract class CloudFileBackend {
   /// - NetworkException for connectivity issues
   /// - Provider-specific exceptions for API errors
   Future<List<RemoteFileInfo>> listKmyFiles({int pageSize = 20});
+
+  /// Retrieves metadata for a specific file.
+  ///
+  /// Gets detailed information about a file including size, modification time,
+  /// and other provider-specific attributes.
+  ///
+  /// Parameters:
+  /// - [remoteFielId]: The unique identifier of the file
+  ///
+  /// Returns a [RemoteFileMetadata] object containing file metadata.
+  ///
+  /// May throw:
+  /// - AuthenticationException if not signed in
+  /// - NetworkException for connectivity issues
+  /// - Provider-specific exceptions for API errors
+  Future<RemoteFileMetadata> getMetadata(String remoteFielId);
+
+  /// Downloads a file from the cloud storage.
+  ///
+  /// Retrieves the file content as a byte array from the specified remote file ID.
+  ///
+  /// Parameters:
+  /// - [remoteFileId]: The unique identifier of the file to download
+  ///
+  /// Returns the file content as a list of bytes.
+  ///
+  /// May throw:
+  /// - AuthenticationException if not signed in
+  /// - NetworkException for connectivity issues
+  /// - Provider-specific exceptions for API errors
+  Future<List<int>> download(String remoteFileId);
 }

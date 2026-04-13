@@ -12,6 +12,23 @@ import 'package:http/http.dart' as http;
 import '../../presentation/providers/cloud_sync_settings_provider.dart';
 import 'cloud_file_backend.dart';
 
+/// OneDrive implementation of cloud file backend.
+///
+/// This class provides concrete implementation of [CloudFileBackend]
+/// for OneDrive storage. It handles authentication using Azure AD,
+/// file listing with KMyMoney filtering, and proper error handling.
+///
+/// Features:
+/// - Azure AD authentication
+/// - KMyMoney file filtering (.kmy extension)
+/// - File metadata retrieval (ID, name, modified time)
+/// - Pagination support for large file collections
+/// - Proper error handling and state management
+///
+/// Dependencies:
+/// - Azure AD for authentication
+/// - OneDrive API for file operations
+/// - Flutter Secure Storage for token management
 class OneDriveBackend implements CloudFileBackend {
   static const _discoveryUrl =
       'https://login.microsoftonline.com/common/v2.0/.well-known/openid-configuration';
@@ -39,12 +56,28 @@ class OneDriveBackend implements CloudFileBackend {
   static const _kRefreshTokenKey = 'onedrive_refresh_token';
   static const _kAccessTokenExpiryKey = 'onedrive_access_token_expiry';
 
+  ///
+  /// Checks if the user is currently signed in to OneDrive.
+  ///
+  /// Throws:
+  /// - [StateError] if sign-in fails or required tokens are missing
+  ///
+  /// Returns:
+  /// - [Future<bool>] true if the user is signed in, false otherwise
   @override
   Future<bool> isSignedIn() async {
     final refresh = await _secureStorage.read(key: _kRefreshTokenKey);
     return refresh != null && refresh.trim().isNotEmpty;
   }
 
+  ///
+  /// Initiates the OAuth 2.0 authorization flow with OneDrive.
+  ///
+  /// Throws:
+  /// - [StateError] if sign-in fails or required tokens are missing
+  ///
+  /// Returns:
+  /// - [Future<void>] when sign-in is complete
   @override
   Future<void> signIn() async {
     late final AuthorizationTokenResponse resp;
@@ -92,6 +125,14 @@ class OneDriveBackend implements CloudFileBackend {
     }
   }
 
+  ///
+  /// Signs out the user by deleting all stored tokens.
+  ///
+  /// Throws:
+  /// - [StateError] if sign-out fails
+  ///
+  /// Returns:
+  /// - [Future<void>] when sign-out is complete
   @override
   Future<void> signOut() async {
     await _secureStorage.delete(key: _kAccessTokenKey);
@@ -99,6 +140,14 @@ class OneDriveBackend implements CloudFileBackend {
     await _secureStorage.delete(key: _kAccessTokenExpiryKey);
   }
 
+  ///
+  /// Gets a valid access token for OneDrive API calls.
+  ///
+  /// Throws:
+  /// - [StateError] if not authenticated or token refresh fails
+  ///
+  /// Returns:
+  /// - [String] containing the access token
   Future<String> _getValidAccessToken() async {
     final refresh = await _secureStorage.read(key: _kRefreshTokenKey);
     if (refresh == null || refresh.trim().isEmpty) {
@@ -187,5 +236,96 @@ class OneDriveBackend implements CloudFileBackend {
         })
         .where((f) => f.id.trim().isNotEmpty)
         .toList();
+  }
+
+  ///
+  /// Gets metadata for a file from OneDrive by its remote file ID.
+  ///
+  /// Throws:
+  /// - [StateError] if not authenticated or metadata retrieval fails
+  /// - [ApiException] for OneDrive API errors
+  ///
+  /// Returns:
+  /// - [RemoteFileMetadata] containing file metadata
+  ///
+  /// Parameters:
+  /// - [remoteFielId] The ID of the file to get metadata for
+  @override
+  Future<RemoteFileMetadata> getMetadata(String remoteFileId) async {
+    final token = await _getValidAccessToken();
+
+    final uri = Uri.parse(
+      'https://graph.microsoft.com/v1.0/me/drive/items/$remoteFileId'
+      '?\$select=id,name,size,lastModifiedDateTime,cTag,eTag',
+    );
+
+    final resp = await http.get(
+      uri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (resp.statusCode < 200 || resp.statusCode >= 300) {
+      throw StateError(
+        'OneDrive: metadata failed (${resp.statusCode}): ${resp.body}',
+      );
+    }
+
+    final decoded = jsonDecode(resp.body) as Map<String, dynamic>;
+
+    final id = (decoded['id'] as String?) ?? remoteFileId;
+    final name = (decoded['name'] as String?) ?? '';
+    final size = decoded['size'] as int?;
+    final modifiedRaw = decoded['lastModifiedDateTime'] as String?;
+    if (modifiedRaw == null) {
+      throw StateError('OneDrive: file has no lastModifiedDateTime.');
+    }
+
+    final modifiedAt = DateTime.parse(modifiedRaw);
+
+    final cTag = decoded['cTag'] as String?;
+    final eTag = decoded['eTag'] as String?;
+    final versionTag = (cTag?.isNotEmpty ?? false) ? cTag! : (eTag ?? '');
+
+    return RemoteFileMetadata(
+      id: id,
+      name: name,
+      versionTag: versionTag,
+      modifiedAt: modifiedAt,
+      size: size,
+    );
+  }
+
+  ///
+  /// Downloads a file from OneDrive by its remote file ID.
+  ///
+  /// Throws:
+  /// - [StateError] if not authenticated or download fails
+  /// - [ApiException] for OneDrive API errors
+  ///
+  /// Returns:
+  /// - [List<int>] containing the file data
+  ///
+  /// Parameters:
+  /// - [remoteFileId] The ID of the file to download
+  @override
+  Future<List<int>> download(String remoteFileId) async {
+    final token = await _getValidAccessToken();
+
+    final uri = Uri.parse(
+      'https://graph.microsoft.com/v1.0/me/drive/items/$remoteFileId/content',
+    );
+
+    final resp = await http.get(
+      uri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (resp.statusCode < 200 || resp.statusCode >= 300) {
+      throw StateError(
+        'OneDrive: download failed (${resp.statusCode}): ${resp.body}',
+      );
+    }
+
+    return resp.bodyBytes;
   }
 }
