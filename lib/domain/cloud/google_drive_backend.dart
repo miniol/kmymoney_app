@@ -181,8 +181,8 @@ class GoogleDriveBackend implements CloudFileBackend {
 
     final id = f.id ?? remoteFileId;
     final name = f.name ?? '';
-    final modifiedRaw = f.modifiedTime;
-    if (modifiedRaw == null) {
+    final modifiedAt = f.modifiedTime;
+    if (modifiedAt == null) {
       throw StateError('Google Drive: file has no modifiedTime.');
     }
 
@@ -196,7 +196,7 @@ class GoogleDriveBackend implements CloudFileBackend {
       id: id,
       name: name,
       versionTag: versionTag,
-      modifiedAt: modifiedRaw,
+      modifiedAt: modifiedAt,
       size: size,
     );
   }

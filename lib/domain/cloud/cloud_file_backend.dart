@@ -153,7 +153,7 @@ abstract class CloudFileBackend {
   /// and other provider-specific attributes.
   ///
   /// Parameters:
-  /// - [remoteFielId]: The unique identifier of the file
+  /// - [remoteFileId]: The unique identifier of the file
   ///
   /// Returns a [RemoteFileMetadata] object containing file metadata.
   ///
@@ -161,7 +161,7 @@ abstract class CloudFileBackend {
   /// - AuthenticationException if not signed in
   /// - NetworkException for connectivity issues
   /// - Provider-specific exceptions for API errors
-  Future<RemoteFileMetadata> getMetadata(String remoteFielId);
+  Future<RemoteFileMetadata> getMetadata(String remoteFileId);
 
   /// Downloads a file from the cloud storage.
   ///
