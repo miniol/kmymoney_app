@@ -18,6 +18,8 @@ import '../providers/app_settings_provider.dart';
 import '../providers/cloud_sync_settings_provider.dart';
 import '../providers/kmy_local_path_provider.dart';
 import '../providers/cloud_backend_provider.dart';
+import '../providers/kmy_cloud_sync_provider.dart';
+import '../providers/kmy_file_provider.dart';
 
 class AppSettingsScreen extends ConsumerStatefulWidget {
   const AppSettingsScreen({super.key});
@@ -299,6 +301,106 @@ class _AppSettingsScreenState extends ConsumerState<AppSettingsScreen> {
                         );
                       },
                     ),
+                  ),
+                  ListTile(
+                    title: const Text('Check for updates'),
+                    trailing: const Icon(Icons.refresh),
+                    onTap: () async {
+                      final sync = ref.read(kmyCloudSyncProvider.notifier);
+                      try {
+                        final res = await sync.checkForUpdates();
+                        if (!context.mounted) return;
+
+                        final msg = switch (res) {
+                          CloudSyncCheckResult.notConfigured =>
+                            'Cloud sync is not configured (provider/backend, remote file, or local path missing).',
+                          CloudSyncCheckResult.upToDate =>
+                            'No updates found. Remote file matches the last synced version.',
+                          CloudSyncCheckResult.updateAvailable =>
+                            'Update available: remote file is newer than your last synced version.',
+                        };
+
+                        showDialog<void>(
+                          context: context,
+                          builder: (_) => AlertDialog(
+                            title: const Text('Cloud sync'),
+                            content: Text(msg),
+                          ),
+                        );
+                      } catch (e) {
+                        if (!context.mounted) return;
+                        showDialog<void>(
+                          context: context,
+                          builder: (_) => AlertDialog(
+                            title: const Text('Check failed'),
+                            content: Text(e.toString()),
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                  ListTile(
+                    title: const Text('Sync now'),
+                    trailing: const Icon(Icons.cloud_download),
+                    onTap: () async {
+                      final sync = ref.read(kmyCloudSyncProvider.notifier);
+
+                      try {
+                        final result = await sync.syncNowDownloadIfNewer();
+                        if (!context.mounted) return;
+
+                        if (!result.downloaded) {
+                          showDialog<void>(
+                            context: context,
+                            builder: (_) => const AlertDialog(
+                              title: Text('Cloud sync'),
+                              content: Text(
+                                'Nothing to download (already up to date, or not configured).',
+                              ),
+                            ),
+                          );
+                          return;
+                        }
+
+                        final shouldImport = await showDialog<bool>(
+                          context: context,
+                          builder: (_) => AlertDialog(
+                            title: const Text('Download complete'),
+                            content: const Text(
+                              'A newer file was downloaded. Import now?',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, false),
+                                child: const Text('Later'),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, true),
+                                child: const Text('Import'),
+                              ),
+                            ],
+                          ),
+                        );
+
+                        if (shouldImport == true) {
+                          final path = result.localPath;
+                          if (path != null) {
+                            await ref
+                                .read(kmyFileProvider.notifier)
+                                .loadFile(path);
+                          }
+                        }
+                      } catch (e) {
+                        if (!context.mounted) return;
+                        showDialog<void>(
+                          context: context,
+                          builder: (_) => AlertDialog(
+                            title: const Text('Sync failed'),
+                            content: Text(e.toString()),
+                          ),
+                        );
+                      }
+                    },
                   ),
                   const Divider(),
                 ],
