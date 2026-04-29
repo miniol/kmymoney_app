@@ -21,27 +21,29 @@ import 'split.dart';
 /// - [id]: Unique identifier from KMyMoney
 /// - [date]: When the transaction occurred
 /// - [splits]: List of account entries that balance to zero
+/// - [memo]: Transaction memo/description
+/// - [entryDate]: Entry date (when transaction was entered)
+/// - [commodity]: Commodity/currency code
+/// - [extraAttributes]: Extra attributes as JSON string
+/// - [extraInnerXml]: Extra inner XML content
 class LedgerTransaction {
-  /// Unique identifier from KMyMoney system.
   final String id;
-
-  /// When the transaction occurred.
   final DateTime date;
-
-  /// List of account entries that balance to zero.
   final List<Split> splits;
+  final String memo;
+  final String entryDate;
+  final String commodity;
+  final Map<String, String> extraAttributes;
+  final String extraInnerXml;
 
-  /// Creates a new [LedgerTransaction] instance.
-  ///
-  /// All parameters are required for a complete transaction.
-  ///
-  /// Parameters:
-  /// - [id]: Unique identifier
-  /// - [date]: Transaction date
-  /// - [splits]: List of balancing splits
   LedgerTransaction({
     required this.id,
     required this.date,
     required this.splits,
+    required this.memo,
+    required this.entryDate,
+    required this.commodity,
+    required this.extraAttributes,
+    required this.extraInnerXml,
   });
 }

@@ -15,6 +15,7 @@ import '../../domain/models/split.dart';
 import '../../domain/models/money.dart';
 import 'app_database.dart';
 import 'db_change_notifier.dart';
+import 'dart:convert';
 
 /// Data Access Object for transaction database operations.
 ///
@@ -22,21 +23,14 @@ import 'db_change_notifier.dart';
 /// transaction data and their associated splits in SQLite database.
 /// Handles complex operations involving both transactions and splits.
 ///
+/// Note: This DAO uses batch operations for optimal performance when
+/// inserting multiple transactions at once.
+///
 /// Key features:
 /// - Batch insertion for multiple transactions
 /// - Atomic operations for transaction-split relationships
 /// - Change notification for UI updates
 class TransactionDao {
-  /// Inserts multiple transactions with their splits into the database.
-  ///
-  /// This method performs atomic batch operations to ensure data
-  /// consistency. Each transaction and all its splits are inserted
-  /// together in a single batch operation.
-  ///
-  /// Parameters:
-  /// - [transactions]: List of transactions to insert
-  ///
-  /// Notifies listeners of database changes after insertion.
   Future<void> insertTransactions(List<LedgerTransaction> transactions) async {
     // Get database instance for batch operation
     final db = await AppDatabase.instance.database;
@@ -50,15 +44,33 @@ class TransactionDao {
       batch.insert('transactions', {
         'id': tx.id,
         'post_date': tx.date.toIso8601String(),
+        'memo': tx.memo,
+        'entry_date': tx.entryDate,
+        'commodity': tx.commodity,
+        'extra_attrs_json': jsonEncode(tx.extraAttributes),
+        'extra_inner_xml': tx.extraInnerXml,
       }, conflictAlgorithm: ConflictAlgorithm.replace);
 
       // Insert all splits for this transaction
       for (final split in tx.splits) {
         batch.insert('splits', {
           'transaction_id': tx.id,
+          'split_id': split.id,
           'account_id': split.accountId,
-          'numerator': split.value.numerator.toString(),
-          'denominator': split.value.denominator.toString(),
+          'value_num': split.value.numerator.toString(),
+          'value_denom': split.value.denominator.toString(),
+          'shares_num': split.shares.numerator.toString(),
+          'shares_denom': split.shares.denominator.toString(),
+          'price_num': split.price.numerator.toString(),
+          'price_denom': split.price.denominator.toString(),
+          'payee_id': split.payeeId,
+          'reconcile_date': split.reconcileDate,
+          'reconcile_flag': split.reconcileFlag,
+          'action': split.action,
+          'memo': split.memo,
+          'number': split.number,
+          'bankid': split.bankId,
+          'extra_attrs_json': jsonEncode(split.extraAttributes),
         });
       }
     }
@@ -79,15 +91,39 @@ class TransactionDao {
     return txMaps.map((txMap) {
       final txId = txMap['id'] as String;
 
+      final txExtraAttrsRaw = (txMap['extra_attrs_json'] as String?) ?? '{}';
+      final txExtraAttrsDecoded = (jsonDecode(txExtraAttrsRaw) as Map)
+          .cast<String, String>();
+
       final splits = splitMaps.where((s) => s['transaction_id'] == txId).map((
         s,
       ) {
+        final splitExtraAttrsRaw = (s['extra_attrs_json'] as String?) ?? '{}';
+        final splitExtraAttrsDecoded = (jsonDecode(splitExtraAttrsRaw) as Map)
+            .cast<String, String>();
         return Split(
+          id: s['split_id'] as String,
           accountId: s['account_id'] as String,
           value: Money(
-            BigInt.parse(s['numerator'] as String),
-            BigInt.parse(s['denominator'] as String),
+            BigInt.parse(s['value_num'] as String),
+            BigInt.parse(s['value_denom'] as String),
           ),
+          shares: Money(
+            BigInt.parse(s['shares_num'] as String),
+            BigInt.parse(s['shares_denom'] as String),
+          ),
+          price: Money(
+            BigInt.parse(s['price_num'] as String),
+            BigInt.parse(s['price_denom'] as String),
+          ),
+          payeeId: s['payee_id'] as String,
+          reconcileDate: s['reconcile_date'] as String,
+          reconcileFlag: s['reconcile_flag'] as String,
+          action: s['action'] as String,
+          memo: s['memo'] as String,
+          number: s['number'] as String,
+          bankId: s['bankid'] as String,
+          extraAttributes: splitExtraAttrsDecoded,
         );
       }).toList();
 
@@ -95,6 +131,11 @@ class TransactionDao {
         id: txId,
         date: DateTime.parse(txMap['post_date'] as String),
         splits: splits,
+        memo: (txMap['memo'] as String?) ?? '',
+        entryDate: (txMap['entry_date'] as String?) ?? '',
+        commodity: (txMap['commodity'] as String?) ?? '',
+        extraAttributes: txExtraAttrsDecoded,
+        extraInnerXml: (txMap['extra_inner_xml'] as String?) ?? '',
       );
     }).toList();
   }
@@ -112,36 +153,64 @@ class TransactionDao {
   ) async {
     final db = await AppDatabase.instance.database;
 
-    final txMaps = await db.rawQuery(
+    final txRows = await db.rawQuery(
       '''
-    SELECT DISTINCT t.id, t.post_date
-    FROM transactions t
-    INNER JOIN splits s
-      ON t.id = s.transaction_id
-    WHERE s.account_id = ?
-    ORDER BY t.post_date DESC
-  ''',
+      SELECT DISTINCT t.*
+      FROM transactions t
+      INNER JOIN splits s
+        ON t.id = s.transaction_id
+      WHERE s.account_id = ?
+      ORDER BY t.post_date DESC
+    ''',
       [accountId],
     );
 
-    final splitMaps = await db.query(
+    if (txRows.isEmpty) return [];
+
+    final splitRows = await db.query(
       'splits',
       where: 'account_id = ?',
       whereArgs: [accountId],
+      orderBy: 'row_id ASC',
     );
 
-    return txMaps.map((txMap) {
+    return txRows.map((txMap) {
       final txId = txMap['id'] as String;
 
-      final splits = splitMaps.where((s) => s['transaction_id'] == txId).map((
+      final txExtraAttrsRaw = (txMap['extra_attrs_json'] as String?) ?? '{}';
+      final txExtraAttrsDecoded = (jsonDecode(txExtraAttrsRaw) as Map)
+          .cast<String, String>();
+
+      final splits = splitRows.where((s) => s['transaction_id'] == txId).map((
         s,
       ) {
+        final splitExtraAttrsRaw = (s['extra_attrs_json'] as String?) ?? '{}';
+        final splitExtraAttrsDecoded = (jsonDecode(splitExtraAttrsRaw) as Map)
+            .cast<String, String>();
+
         return Split(
+          id: s['split_id'] as String,
           accountId: s['account_id'] as String,
           value: Money(
-            BigInt.parse(s['numerator'] as String),
-            BigInt.parse(s['denominator'] as String),
+            BigInt.parse(s['value_num'] as String),
+            BigInt.parse(s['value_denom'] as String),
           ),
+          shares: Money(
+            BigInt.parse(s['shares_num'] as String),
+            BigInt.parse(s['shares_denom'] as String),
+          ),
+          price: Money(
+            BigInt.parse(s['price_num'] as String),
+            BigInt.parse(s['price_denom'] as String),
+          ),
+          payeeId: s['payee_id'] as String,
+          reconcileDate: s['reconcile_date'] as String,
+          reconcileFlag: s['reconcile_flag'] as String,
+          action: s['action'] as String,
+          memo: s['memo'] as String,
+          number: s['number'] as String,
+          bankId: s['bankid'] as String,
+          extraAttributes: splitExtraAttrsDecoded,
         );
       }).toList();
 
@@ -149,6 +218,11 @@ class TransactionDao {
         id: txId,
         date: DateTime.parse(txMap['post_date'] as String),
         splits: splits,
+        memo: (txMap['memo'] as String?) ?? '',
+        entryDate: (txMap['entry_date'] as String?) ?? '',
+        commodity: (txMap['commodity'] as String?) ?? '',
+        extraAttributes: txExtraAttrsDecoded,
+        extraInnerXml: (txMap['extra_inner_xml'] as String?) ?? '',
       );
     }).toList();
   }

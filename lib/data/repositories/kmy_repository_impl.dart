@@ -54,12 +54,30 @@ Map<String, dynamic> _parseKmyToWireFormat(String xmlString) {
           (t) => {
             'id': t.id,
             'date': t.date.toIso8601String(),
+            'memo': t.memo,
+            'entryDate': t.entryDate,
+            'commodity': t.commodity,
+            'extraAttributes': t.extraAttributes,
+            'extraInnerXml': t.extraInnerXml,
             'splits': t.splits
                 .map(
                   (s) => {
+                    'id': s.id,
                     'accountId': s.accountId,
                     'numerator': s.value.numerator.toString(),
                     'denominator': s.value.denominator.toString(),
+                    'sharesNumerator': s.shares.numerator.toString(),
+                    'sharesDenominator': s.shares.denominator.toString(),
+                    'priceNumerator': s.price.numerator.toString(),
+                    'priceDenominator': s.price.denominator.toString(),
+                    'payeeId': s.payeeId,
+                    'reconcileDate': s.reconcileDate,
+                    'reconcileFlag': s.reconcileFlag,
+                    'action': s.action,
+                    'memo': s.memo,
+                    'number': s.number,
+                    'bankId': s.bankId,
+                    'extraAttributes': s.extraAttributes,
                   },
                 )
                 .toList(growable: false),
@@ -117,11 +135,22 @@ List<LedgerTransaction> _wireTransactions(dynamic raw) {
         final splits = splitMaps
             .map(
               (s) => Split(
+                id: (s['id'] as String?) ?? '',
                 accountId: s['accountId'] as String,
                 value: Money(
                   BigInt.parse(s['numerator'] as String),
                   BigInt.parse(s['denominator'] as String),
                 ),
+                shares: Money(BigInt.zero, BigInt.one),
+                price: Money(BigInt.one, BigInt.one),
+                payeeId: '',
+                reconcileDate: '',
+                reconcileFlag: '0',
+                action: '',
+                memo: '',
+                number: '',
+                bankId: '',
+                extraAttributes: const {},
               ),
             )
             .toList(growable: false);
@@ -130,6 +159,11 @@ List<LedgerTransaction> _wireTransactions(dynamic raw) {
           id: m['id'] as String,
           date: DateTime.parse(m['date'] as String),
           splits: splits,
+          memo: '',
+          entryDate: '',
+          commodity: '',
+          extraAttributes: const {},
+          extraInnerXml: '',
         );
       })
       .toList(growable: false);

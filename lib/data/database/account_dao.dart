@@ -108,8 +108,8 @@ class AccountDao {
       a.type,
       a.currency_id,
       a.preferred,
-      IFNULL(SUM(CAST(s.numerator AS INTEGER)), 0) as total_num,
-      IFNULL(MAX(CAST(s.denominator AS INTEGER)), 1) as denom
+      IFNULL(SUM(CAST(s.value_num AS INTEGER)), 0) as total_num,
+      IFNULL(MAX(CAST(s.value_denom AS INTEGER)), 1) as denom
     FROM accounts a
     LEFT JOIN splits s ON a.id = s.account_id
     WHERE a.type IN ($typeValues)

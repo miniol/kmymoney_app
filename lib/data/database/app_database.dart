@@ -64,7 +64,7 @@ class AppDatabase {
 
     return await openDatabase(
       path,
-      version: 5,
+      version: 6,
       onCreate: _createDB,
       // Handle database schema migrations
       onUpgrade: (db, oldVersion, newVersion) async {
@@ -103,6 +103,16 @@ class AppDatabase {
           ''');
         }
 
+        if (oldVersion < 6) {
+          await db.execute('DROP TABLE IF EXISTS splits');
+          await db.execute('DROP TABLE IF EXISTS transactions');
+          await db.execute('DROP TABLE IF EXISTS schedules');
+          await db.execute('DROP TABLE IF EXISTS payees');
+          await db.execute('DROP TABLE IF EXISTS accounts');
+
+          await _createDB(db, 6);
+        }
+
         // Migration v4->v5: Add preferred column to accounts table
         if (oldVersion < 5) {
           await db.execute(
@@ -138,22 +148,50 @@ class AppDatabase {
     await db.execute('''
       CREATE TABLE transactions (
         id TEXT PRIMARY KEY,
-        post_date TEXT NOT NULL
+        post_date TEXT NOT NULL,
+        memo TEXT NOT NULL DEFAULT '',
+        entry_date TEXT NOT NULL DEFAULT '',
+        commodity TEXT NOT NULL DEFAULT '',
+        extra_attrs_json TEXT NOT NULL DEFAULT '{}',
+        extra_inner_xml TEXT NOT NULL DEFAULT ''
       )
     ''');
 
     // Create splits table for transaction line items
     await db.execute('''
       CREATE TABLE splits (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        row_id INTEGER PRIMARY KEY AUTOINCREMENT,
         transaction_id TEXT NOT NULL,
+        split_id TEXT NOT NULL,
         account_id TEXT NOT NULL,
-        numerator TEXT NOT NULL,
-        denominator TEXT NOT NULL,
+
+        value_num TEXT NOT NULL,
+        value_denom TEXT NOT NULL,
+
+        shares_num TEXT NOT NULL DEFAULT '0',
+        shares_denom TEXT NOT NULL DEFAULT '1',
+        price_num TEXT NOT NULL DEFAULT '1',
+        price_denom TEXT NOT NULL DEFAULT '1',
+
+        payee_id TEXT NOT NULL DEFAULT '',
+        reconcile_date TEXT NOT NULL DEFAULT '',
+        reconcile_flag TEXT NOT NULL DEFAULT '0',
+        action TEXT NOT NULL DEFAULT '',
+        memo TEXT NOT NULL DEFAULT '',
+        number TEXT NOT NULL DEFAULT '',
+        bankid TEXT NOT NULL DEFAULT '',
+
+        extra_attrs_json TEXT NOT NULL DEFAULT '{}',
+
         FOREIGN KEY (transaction_id) REFERENCES transactions(id),
         FOREIGN KEY (account_id) REFERENCES accounts(id)
       )
     ''');
+
+    // Add index for faster lookups
+    await db.execute(
+      'CREATE UNIQUE INDEX splits_tx_split_id_idx ON splits(transaction_id, split_id)',
+    );
 
     // Create schedules table for recurring transactions
     await db.execute('''

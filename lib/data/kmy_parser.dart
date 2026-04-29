@@ -41,19 +41,16 @@ enum ScheduleFrequency {
 ///
 /// Contains both the frequency type and multiplier to describe
 /// how often a scheduled transaction occurs.
+///
+/// Properties:
+/// - [frequency]: The type of frequency (daily, monthly, etc.)
+/// - [multiplier]: How many times the frequency repeats (1 = normal, 2 = every two periods, etc.)
 class ScheduleInterpretation {
   final ScheduleFrequency frequency;
   final int multiplier;
 
-  /// Creates a new schedule interpretation.
-  ///
-  /// [frequency] - The type of frequency (daily, monthly, etc.)
-  /// [multiplier] - How many times the frequency repeats (1 = normal, 2 = every two periods, etc.)
   ScheduleInterpretation(this.frequency, this.multiplier);
 
-  /// Returns a human-readable display name for the frequency.
-  ///
-  /// This provides localized text for UI display purposes.
   String get displayName {
     switch (frequency) {
       case ScheduleFrequency.once:
@@ -85,10 +82,6 @@ class ScheduleInterpretation {
     }
   }
 
-  /// Returns a string representation of the schedule interpretation.
-  ///
-  /// Combines the display name with multiplier if greater than 1.
-  /// For example: "Monthly x2" for every two months.
   @override
   String toString() {
     final m = multiplier <= 0 ? 1 : multiplier;
@@ -189,33 +182,27 @@ ScheduleInterpretation interpretKMyMoneySchedule({
 /// from KMyMoney's XML export format, including accounts, transactions,
 /// payees, and scheduled transactions.
 ///
+/// Properties:
+/// - [document]: The parsed XML document
+///
+/// Throws:
+/// - [XmlParserException] if the XML is malformed.
+///
 /// Usage:
 /// ```dart
 /// final parser = KmyParser(xmlString);
 /// final accounts = parser.parseAccounts();
 /// final transactions = parser.parseTransactions();
+/// final payees = parser.parsePayees();
+/// final schedules = parser.parseSchedules();
 /// ```
 class KmyParser {
   late XmlDocument document;
 
-  /// Creates a new parser instance.
-  ///
-  /// [xmlString] - The XML content from a KMyMoney export file
-  ///
-  /// Throws [XmlParserException] if the XML is malformed.
   KmyParser(String xmlString) {
     document = XmlDocument.parse(xmlString);
   }
 
-  /// Parses all account elements from the XML.
-  ///
-  /// Extracts account information including name, type, currency,
-  /// and special flags like 'closed' and 'preferred'.
-  ///
-  /// Handles duplicate account IDs by merging account data,
-  /// preferring non-empty values over empty ones.
-  ///
-  /// Returns a list of [Account] objects parsed from the XML.
   List<Account> parseAccounts() {
     final accountsById = <String, Account>{};
 
@@ -275,11 +262,6 @@ class KmyParser {
     return accountsById.values.toList();
   }
 
-  /// Parses all payee elements from the XML.
-  ///
-  /// Extracts payee information including ID and name.
-  ///
-  /// Returns a list of [Payee] objects parsed from the XML.
   List<Payee> parsePayees() {
     final payees = <Payee>[];
 
@@ -295,39 +277,94 @@ class KmyParser {
     return payees;
   }
 
-  /// Parses all transaction elements from the XML.
-  ///
-  /// Extracts transaction data including post date and associated splits.
-  /// Each transaction contains one or more splits representing the
-  /// debit/credit entries.
-  ///
-  /// Returns a list of [LedgerTransaction] objects parsed from the XML.
   List<LedgerTransaction> parseTransactions() {
     final transactions = <LedgerTransaction>[];
 
-    final txNodes = document.findAllElements('TRANSACTION');
+    final txNodes =
+        document.rootElement
+            .getElement('TRANSACTIONS')
+            ?.findElements('TRANSACTION') ??
+        const Iterable<XmlElement>.empty();
 
     for (final tx in txNodes) {
-      final splits = <Split>[];
-
-      final splitNodes = tx.findAllElements('SPLIT');
-
+      final txId = tx.getAttribute('id') ?? '';
       final rawDate = tx.getAttribute('postdate') ?? '';
 
+      final memo = tx.getAttribute('memo') ?? '';
+      final entryDate = tx.getAttribute('entrydate') ?? '';
+      final commodity = tx.getAttribute('commodity') ?? '';
+
+      final txExtraAttrs = _attrsExcept(tx, {
+        'id',
+        'postdate',
+        'memo',
+        'entrydate',
+        'commodity',
+      });
+
+      final splitNodes = tx.findAllElements('SPLIT');
+      final splits = <Split>[];
+
       for (final split in splitNodes) {
+        final splitId = split.getAttribute('id') ?? '';
+        final accountId = split.getAttribute('account') ?? '';
+
+        final value = Money.fromString(split.getAttribute('value') ?? '0/1');
+        final shares = Money.fromString(split.getAttribute('shares') ?? '0/1');
+        final price = Money.fromString(split.getAttribute('price') ?? '1/1');
+
+        final payeeId = split.getAttribute('payee') ?? '';
+        final reconcileDate = split.getAttribute('reconciledate') ?? '';
+        final reconcileFlag = split.getAttribute('reconcileflag') ?? '0';
+        final action = split.getAttribute('action') ?? '';
+        final splitMemo = split.getAttribute('memo') ?? '';
+        final number = split.getAttribute('number') ?? '';
+        final bankId = split.getAttribute('bankid') ?? '';
+
+        final splitExtraAttrs = _attrsExcept(split, {
+          'id',
+          'account',
+          'value',
+          'shares',
+          'price',
+          'payee',
+          'reconciledate',
+          'reconcileflag',
+          'action',
+          'memo',
+          'number',
+          'bankid',
+        });
+
         splits.add(
           Split(
-            accountId: split.getAttribute('account') ?? '',
-            value: Money.fromString(split.getAttribute('value') ?? '0/1'),
+            id: splitId,
+            accountId: accountId,
+            value: value,
+            shares: shares,
+            price: price,
+            payeeId: payeeId,
+            reconcileDate: reconcileDate,
+            reconcileFlag: reconcileFlag,
+            action: action,
+            memo: splitMemo,
+            number: number,
+            bankId: bankId,
+            extraAttributes: splitExtraAttrs,
           ),
         );
       }
 
       transactions.add(
         LedgerTransaction(
-          id: tx.getAttribute('id') ?? '',
+          id: txId,
           date: _parseKmyDate(rawDate),
           splits: splits,
+          memo: memo,
+          entryDate: entryDate,
+          commodity: commodity,
+          extraAttributes: txExtraAttrs,
+          extraInnerXml: '',
         ),
       );
     }
@@ -335,16 +372,6 @@ class KmyParser {
     return transactions;
   }
 
-  /// Parses all scheduled transaction elements from the XML.
-  ///
-  /// Extracts comprehensive schedule information including:
-  /// - Basic info (ID, name, type)
-  /// - Timing (start date, next due date, last payment)
-  /// - Frequency interpretation using [interpretKMyMoneySchedule]
-  /// - Payment method decoding
-  /// - Associated payee and account information
-  ///
-  /// Returns a list of [Schedule] objects parsed from the XML.
   List<Schedule> parseSchedules() {
     final schedules = <Schedule>[];
 
@@ -456,19 +483,6 @@ class KmyParser {
     return schedules;
   }
 
-  /// Determines the schedule group based on type, hint, or name.
-  ///
-  /// Uses multiple heuristics to categorize schedules:
-  /// 1. Explicit type codes (1=bills, 2=deposits, 3=transfers, 4=loans)
-  /// 2. Group hint text containing keywords
-  /// 3. Schedule name containing keywords
-  ///
-  /// Parameters:
-  /// - [type]: The numeric type code from KMyMoney
-  /// - [hint]: Text hint about the schedule type
-  /// - [name]: The schedule name for keyword analysis
-  ///
-  /// Returns the appropriate [ScheduleGroup].
   ScheduleGroup _groupFromTypeOrHint(String type, String hint, String name) {
     switch (type.trim()) {
       case '1':
@@ -501,19 +515,6 @@ class KmyParser {
     return ScheduleGroup.bills;
   }
 
-  /// Selects the primary split from a scheduled transaction.
-  ///
-  /// For scheduled transactions with multiple splits, determines which
-  /// split should be considered the "primary" one based on:
-  /// 1. Value sign preference (positive for deposits, negative for withdrawals)
-  /// 2. First split with a non-empty account ID
-  /// 3. First split as fallback
-  ///
-  /// Parameters:
-  /// - [scheduleNode]: The XML element containing the schedule
-  /// - [scheduleType]: The schedule type to determine value preference
-  ///
-  /// Returns the primary [XmlElement] split or null if no splits exist.
   XmlElement? _selectPrimaryScheduleSplit(
     XmlElement scheduleNode, {
     String scheduleType = '',
@@ -542,15 +543,6 @@ class KmyParser {
     return splits.first;
   }
 
-  /// Extracts all split elements from a scheduled transaction.
-  ///
-  /// Navigates the XML structure to find all SPLIT elements
-  /// within the TRANSACTION/SPLITS hierarchy.
-  ///
-  /// Parameters:
-  /// - [scheduleNode]: The XML element containing the schedule
-  ///
-  /// Returns a list of split [XmlElement] objects, possibly empty.
   List<XmlElement> _listScheduleSplits(XmlElement scheduleNode) {
     return scheduleNode
             .getElement('TRANSACTION')
@@ -560,16 +552,6 @@ class KmyParser {
         <XmlElement>[];
   }
 
-  /// Finds the first non-empty attribute value from a list of elements.
-  ///
-  /// Iterates through elements in order and returns the first
-  /// non-empty, non-whitespace value for the specified attribute.
-  ///
-  /// Parameters:
-  /// - [elements]: List of XML elements to search
-  /// - [attr]: The attribute name to look for
-  ///
-  /// Returns the first non-empty attribute value or empty string if none found.
   String _firstNonEmptyAttr(List<XmlElement> elements, String attr) {
     for (final el in elements) {
       final v = (el.getAttribute(attr) ?? '').trim();
@@ -578,39 +560,12 @@ class KmyParser {
     return '';
   }
 
-  /// Safely parses an integer from a string with fallback.
-  ///
-  /// Handles empty strings and invalid integer formats by
-  /// returning a specified fallback value instead of throwing.
-  ///
-  /// Parameters:
-  /// - [value]: The string to parse
-  /// - [fallback]: Value to return if parsing fails (defaults to 0)
-  ///
-  /// Returns the parsed integer or fallback value.
   int _parseIntSafe(String value, {int fallback = 0}) {
     final trimmed = value.trim();
     if (trimmed.isEmpty) return fallback;
     return int.tryParse(trimmed) ?? fallback;
   }
 
-  /// Decodes KMyMoney payment type bit flags into human-readable text.
-  ///
-  /// KMyMoney uses bit flags to encode payment methods:
-  /// - 1: Direct deposit
-  /// - 2: Direct debit
-  /// - 4: Manual deposit
-  /// - 8: Manual withdrawal
-  /// - 16: Write cheque
-  /// - 32: Standing order
-  /// - 64: Bank transfer
-  ///
-  /// Multiple flags can be combined, resulting in comma-separated descriptions.
-  ///
-  /// Parameters:
-  /// - [raw]: The raw payment type value (string number or empty)
-  ///
-  /// Returns decoded payment method description or original text if not a number.
   String _decodePaymentType(String raw) {
     final trimmed = raw.trim();
     if (trimmed.isEmpty) return '';
@@ -640,19 +595,6 @@ class KmyParser {
     return parts.join(', ');
   }
 
-  /// Parses KMyMoney date strings into DateTime objects.
-  ///
-  /// Handles two common KMyMoney date formats:
-  /// 1. 8-digit format (YYYYMMDD)
-  /// 2. ISO 8601 format (from DateTime.parse)
-  ///
-  /// For empty strings, returns a fallback date (1970-01-01)
-  /// to indicate an invalid/missing date.
-  ///
-  /// Parameters:
-  /// - [value]: The date string to parse
-  ///
-  /// Returns a [DateTime] object or fallback date for empty input.
   DateTime _parseKmyDate(String value) {
     final trimmed = value.trim();
 
@@ -670,5 +612,15 @@ class KmyParser {
     }
 
     return DateTime.parse(trimmed);
+  }
+
+  Map<String, String> _attrsExcept(XmlElement el, Set<String> exclude) {
+    final out = <String, String>{};
+    for (final a in el.attributes) {
+      final k = a.name.local;
+      if (exclude.contains(k)) continue;
+      out[k] = a.value;
+    }
+    return out;
   }
 }
