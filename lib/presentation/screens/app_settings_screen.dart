@@ -346,6 +346,55 @@ class _AppSettingsScreenState extends ConsumerState<AppSettingsScreen> {
                       final sync = ref.read(kmyCloudSyncProvider.notifier);
 
                       try {
+                        // Check for conflicts first
+                        final conflict = await sync.detectConflict();
+
+                        if (conflict == SyncConflictState.bothChanged) {
+                          if (!context.mounted) return;
+
+                          final choice = await showDialog<String>(
+                            context: context,
+                            builder: (_) => AlertDialog(
+                              title: const Text('Sync conflict'),
+                              content: const Text(
+                                'Both local and remote files have changed since last sync. '
+                                'Which version do you want to keep?',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.pop(context, 'local'),
+                                  child: const Text('Keep local (upload)'),
+                                ),
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.pop(context, 'remote'),
+                                  child: const Text('Keep remote (download)'),
+                                ),
+                              ],
+                            ),
+                          );
+
+                          if (choice == 'local') {
+                            await sync.uploadNow();
+                            if (!context.mounted) return;
+                            showDialog<void>(
+                              context: context,
+                              builder: (_) => const AlertDialog(
+                                title: Text('Upload complete'),
+                                content: Text(
+                                  'Local version uploaded to cloud.',
+                                ),
+                              ),
+                            );
+                            return;
+                          } else if (choice == 'remote') {
+                            // Continue with download below
+                          } else {
+                            return; // User cancelled
+                          }
+                        }
+
                         final result = await sync.syncNowDownloadIfNewer();
                         if (!context.mounted) return;
 

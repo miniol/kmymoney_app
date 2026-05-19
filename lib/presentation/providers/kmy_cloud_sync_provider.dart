@@ -26,6 +26,9 @@ import '../providers/kmy_local_path_provider.dart';
 /// updates to the cloud-stored KMyMoney file.
 enum CloudSyncCheckResult { notConfigured, upToDate, updateAvailable }
 
+/// Enumeration of sync conflict states.
+enum SyncConflictState { noConflict, localChanged, remoteChanged, bothChanged }
+
 /// Result model for cloud sync download operations.
 ///
 /// Encapsulates the outcome of a sync operation, indicating
@@ -102,6 +105,62 @@ class KmyCloudSyncNotifier extends AsyncNotifier<void> {
     return meta.versionTag == lastRemoteVersion
         ? CloudSyncCheckResult.upToDate
         : CloudSyncCheckResult.updateAvailable;
+  }
+
+  /// Detects sync conflicts between local and remote files.
+  ///
+  /// Compares local file hash with last synced hash and remote version
+  /// to determine if there are conflicting changes.
+  ///
+  /// Returns [SyncConflictState] indicating the conflict situation.
+  ///
+  /// May throw exceptions for file or network errors.
+  Future<SyncConflictState> detectConflict() async {
+    final cloudSettings = await ref.read(cloudSyncSettingsProvider.future);
+    final backend = ref.read(activeCloudBackendProvider);
+    final localPath = await ref.read(kmyLocalPathProvider.future);
+
+    if (backend == null || localPath == null) {
+      return SyncConflictState.noConflict;
+    }
+
+    final remoteFileId = cloudSettings.remoteFileId;
+    if (remoteFileId == null || remoteFileId.trim().isEmpty) {
+      return SyncConflictState.noConflict;
+    }
+
+    // Check if local file exists
+    final localFile = File(localPath);
+    if (!await localFile.exists()) {
+      return SyncConflictState.remoteChanged;
+    }
+
+    // Calculate current local hash
+    final localBytes = await localFile.readAsBytes();
+    final currentLocalHash = sha256.convert(localBytes).toString();
+
+    // Get last synced local hash
+    final lastLocalHash = cloudSettings.lastLocalHash;
+    final localChanged = lastLocalHash == null || lastLocalHash.isEmpty
+        ? true
+        : currentLocalHash != lastLocalHash;
+
+    // Check remote version
+    final meta = await backend.getMetadata(remoteFileId);
+    final lastRemoteVersion = cloudSettings.lastRemoteVersion;
+    final remoteChanged = lastRemoteVersion == null || lastRemoteVersion.isEmpty
+        ? true
+        : meta.versionTag != lastRemoteVersion;
+
+    if (localChanged && remoteChanged) {
+      return SyncConflictState.bothChanged;
+    } else if (localChanged) {
+      return SyncConflictState.localChanged;
+    } else if (remoteChanged) {
+      return SyncConflictState.remoteChanged;
+    }
+
+    return SyncConflictState.noConflict;
   }
 
   /// Synchronizes the local file with cloud version if newer.
