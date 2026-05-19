@@ -51,7 +51,7 @@ class GoogleDriveBackend implements CloudFileBackend {
   GoogleDriveBackend({GoogleSignIn? googleSignIn})
     : _googleSignIn =
           googleSignIn ??
-          GoogleSignIn(scopes: const [drive.DriveApi.driveReadonlyScope]);
+          GoogleSignIn(scopes: const [drive.DriveApi.driveScope]);
 
   /// Returns Google Drive as the cloud provider type.
   @override
@@ -231,5 +231,69 @@ class GoogleDriveBackend implements CloudFileBackend {
       chunks.addAll(chunk);
     }
     return Uint8List.fromList(chunks);
+  }
+
+  ///
+  /// Uploads a file to Google Drive.
+  ///
+  /// Throws:
+  /// - [StateError] if not authenticated or upload fails
+  /// - [ApiException] for Google Drive API errors
+  ///
+  /// Returns:
+  /// - [RemoteFileMetadata] containing the file metadata
+  ///
+  /// Parameters:
+  /// - [fileName] The name of the file to upload
+  /// - [bytes] The file data to upload
+  @override
+  Future<RemoteFileMetadata> upload(String fileName, List<int> bytes) async {
+    final api = await _getDriveApi();
+
+    // Check if file already exists
+    final existing = await api.files.list(
+      q: "trashed = false and name = '$fileName'",
+      spaces: 'drive',
+      $fields: 'files(id)',
+      pageSize: 1,
+    );
+
+    drive.File result;
+    if (existing.files != null && existing.files!.isNotEmpty) {
+      // Update existing file
+      final existingId = existing.files!.first.id;
+      result = await api.files.update(
+        drive.File(),
+        existingId!,
+        uploadMedia: drive.Media(Stream.value(bytes), bytes.length),
+      );
+    } else {
+      // Create new file
+      final fileMetadata = drive.File(name: fileName);
+      result = await api.files.create(
+        fileMetadata,
+        uploadMedia: drive.Media(Stream.value(bytes), bytes.length),
+      );
+    }
+
+    // if (result is! drive.File) {
+    //   throw StateError('Google Drive: upload did not return a File.');
+    // }
+
+    final id = result.id ?? '';
+    final name = result.name ?? fileName;
+    final modifiedAt = result.modifiedTime ?? DateTime.now();
+    final versionTag = (result.md5Checksum?.trim().isNotEmpty ?? false)
+        ? result.md5Checksum!
+        : (result.version?.toString() ?? '');
+    final size = result.size == null ? null : int.tryParse(result.size!);
+
+    return RemoteFileMetadata(
+      id: id,
+      name: name,
+      versionTag: versionTag,
+      modifiedAt: modifiedAt,
+      size: size,
+    );
   }
 }

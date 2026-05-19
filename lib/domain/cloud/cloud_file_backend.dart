@@ -177,4 +177,22 @@ abstract class CloudFileBackend {
   /// - NetworkException for connectivity issues
   /// - Provider-specific exceptions for API errors
   Future<List<int>> download(String remoteFileId);
+
+  /// Uploads a file to the cloud storage.
+  ///
+  /// Uploads file content to cloud storage. If a file with the same name
+  /// already exists, it will be updated. Returns the metadata of the
+  /// uploaded file including the new version tag.
+  ///
+  /// Parameters:
+  /// - [fileName]: Name to give the file in cloud storage
+  /// - [bytes]: File content as byte list
+  ///
+  /// Returns [RemoteFileMetadata] with updated file information.
+  ///
+  /// May throw:
+  /// - AuthenticationException if not signed in
+  /// - NetworkException for connectivity issues
+  /// - Provider-specific exceptions for API errors
+  Future<RemoteFileMetadata> upload(String fileName, List<int> bytes);
 }

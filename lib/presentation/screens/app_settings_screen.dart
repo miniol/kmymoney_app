@@ -402,6 +402,38 @@ class _AppSettingsScreenState extends ConsumerState<AppSettingsScreen> {
                       }
                     },
                   ),
+                  ListTile(
+                    title: const Text('Upload to cloud'),
+                    trailing: const Icon(Icons.cloud_upload),
+                    onTap: () async {
+                      final sync = ref.read(kmyCloudSyncProvider.notifier);
+
+                      try {
+                        await sync.uploadNow();
+                        if (!context.mounted) return;
+
+                        showDialog<void>(
+                          context: context,
+                          builder: (_) => const AlertDialog(
+                            title: Text('Upload complete'),
+                            content: Text(
+                              'File uploaded to cloud successfully.',
+                            ),
+                          ),
+                        );
+                      } catch (e) {
+                        if (!context.mounted) return;
+                        showDialog<void>(
+                          context: context,
+                          builder: (_) => AlertDialog(
+                            title: const Text('Upload failed'),
+                            content: Text(e.toString()),
+                          ),
+                        );
+                      }
+                    },
+                  ),
+
                   const Divider(),
                 ],
               );

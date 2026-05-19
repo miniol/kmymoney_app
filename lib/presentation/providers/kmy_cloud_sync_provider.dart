@@ -13,6 +13,7 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:kmymoney_app/domain/cloud/cloud_file_backend.dart';
 
 // import '../../domain/cloud/cloud_file_backend.dart';
 import '../providers/cloud_backend_provider.dart';
@@ -170,6 +171,63 @@ class KmyCloudSyncNotifier extends AsyncNotifier<void> {
 
       state = const AsyncData(null);
       return CloudSyncDownloadResult(downloaded: true, localPath: localPath);
+    } catch (e, st) {
+      state = AsyncError(e, st);
+      rethrow;
+    }
+  }
+
+  /// Uploads the local file to cloud storage.
+  ///
+  /// Reads the local file, uploads it to the configured cloud backend,
+  /// and updates the sync baseline with the new version information.
+  ///
+  /// Returns [RemoteFileMetadata] from the upload operation.
+  ///
+  /// State management:
+  /// - Sets AsyncLoading during operation
+  /// - Sets AsyncData on completion
+  /// - Sets AsyncError on failure
+  ///
+  /// May rethrow exceptions for network, authentication, or file errors.
+  Future<RemoteFileMetadata> uploadNow() async {
+    state = const AsyncLoading();
+
+    try {
+      final cloudSettings = await ref.read(cloudSyncSettingsProvider.future);
+      final cloudSettingsNotifier = ref.read(
+        cloudSyncSettingsProvider.notifier,
+      );
+
+      final backend = ref.read(activeCloudBackendProvider);
+      final localPath = await ref.read(kmyLocalPathProvider.future);
+
+      if (backend == null || localPath == null || localPath.trim().isEmpty) {
+        state = const AsyncData(null);
+        throw StateError('Cloud sync not configured properly.');
+      }
+
+      final localFile = File(localPath);
+      if (!await localFile.exists()) {
+        throw StateError('Local file does not exist.');
+      }
+
+      final bytes = await localFile.readAsBytes();
+      final fileName =
+          cloudSettings.remoteFileName ?? localFile.uri.pathSegments.last;
+
+      final meta = await backend.upload(fileName, bytes);
+
+      final localHash = sha256.convert(bytes).toString();
+
+      await cloudSettingsNotifier.setSyncBaseline(
+        lastRemoteVersion: meta.versionTag,
+        lastLocalHash: localHash,
+        lastSyncAt: DateTime.now(),
+      );
+
+      state = const AsyncData(null);
+      return meta;
     } catch (e, st) {
       state = AsyncError(e, st);
       rethrow;

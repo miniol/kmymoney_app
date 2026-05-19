@@ -328,4 +328,105 @@ class OneDriveBackend implements CloudFileBackend {
 
     return resp.bodyBytes;
   }
+
+  ///
+  /// Uploads a file to OneDrive.
+  ///
+  /// Throws:
+  /// - [StateError] if not authenticated or upload fails
+  /// - [ApiException] for OneDrive API errors
+  ///
+  /// Returns:
+  /// - [RemoteFileMetadata] containing the file metadata
+  ///
+  /// Parameters:
+  /// - [fileName] The name of the file to upload
+  /// - [bytes] The file data to upload
+  @override
+  Future<RemoteFileMetadata> upload(String fileName, List<int> bytes) async {
+    final token = await _getValidAccessToken();
+
+    // Check if file already exists in root
+    final checkUri = Uri.parse(
+      'https://graph.microsoft.com/v1.0/me/drive/root/children/\$search(q=\'$fileName\')?\$select=id,name',
+    );
+
+    final checkResp = await http.get(
+      checkUri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    String? existingId;
+    if (checkResp.statusCode >= 200 && checkResp.statusCode < 300) {
+      final decoded = jsonDecode(checkResp.body) as Map<String, dynamic>;
+      final values = (decoded['value'] as List?) ?? const [];
+      if (values.isNotEmpty) {
+        existingId = (values.first as Map<String, dynamic>)['id'] as String?;
+      }
+    }
+
+    final uri = existingId != null
+        ? Uri.parse(
+            'https://graph.microsoft.com/v1.0/me/drive/items/$existingId/content',
+          )
+        : Uri.parse(
+            'https://graph.microsoft.com/v1.0/me/drive/root:/$fileName:/content',
+          );
+
+    final resp = await http.put(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/octet-stream',
+      },
+      body: bytes,
+    );
+
+    if (resp.statusCode < 200 || resp.statusCode >= 300) {
+      throw StateError(
+        'OneDrive: upload failed (${resp.statusCode}): ${resp.body}',
+      );
+    }
+
+    // Get metadata after upload
+    final metadataUri = existingId != null
+        ? Uri.parse(
+            'https://graph.microsoft.com/v1.0/me/drive/items/$existingId?\$select=id,name,size,lastModifiedDateTime,cTag,eTag',
+          )
+        : Uri.parse(
+            'https://graph.microsoft.com/v1.0/me/drive/root:/$fileName?\$select=id,name,size,lastModifiedDateTime,cTag,eTag',
+          );
+
+    final metaResp = await http.get(
+      metadataUri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (metaResp.statusCode < 200 || metaResp.statusCode >= 300) {
+      throw StateError(
+        'OneDrive: metadata after upload failed (${metaResp.statusCode}): ${metaResp.body}',
+      );
+    }
+
+    final decoded = jsonDecode(metaResp.body) as Map<String, dynamic>;
+    final id = (decoded['id'] as String?) ?? '';
+    final name = (decoded['name'] as String?) ?? fileName;
+    final size = decoded['size'] as int?;
+    final modifiedRaw = decoded['lastModifiedDateTime'] as String?;
+    final modifiedAt = modifiedRaw != null
+        ? DateTime.parse(modifiedRaw)
+        : DateTime.now();
+
+    final cTag = decoded['cTag'] as String?;
+    final eTag = decoded['eTag'] as String?;
+    final versionTag = (cTag?.isNotEmpty ?? false) ? cTag! : (eTag ?? '');
+
+    return RemoteFileMetadata(
+      id: id,
+      name: name,
+      versionTag: versionTag,
+      modifiedAt: modifiedAt,
+      size: size,
+    );
+  }
 }
